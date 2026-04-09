@@ -20,6 +20,7 @@ An AI-powered Chief of Staff that:
 | [Notion](https://www.notion.so/) | Task database and document storage | Yes |
 | [Google Calendar](https://calendar.google.com/) | Calendar management | Yes |
 | [Gmail](https://mail.google.com/) | Email monitoring | Yes |
+| [Granola](https://www.granola.so/) | Meeting notes, transcripts, AI summaries | Optional |
 | [n8n](https://n8n.io/) | Workflow automation (optional, for webhooks) | Optional |
 | [OpenCLI](https://github.com/jackwener/OpenCLI) | Browser automation via Chrome — send emails, control web apps | Optional |
 | [CLI-Anything](https://github.com/HKUDS/CLI-Anything) | Convert GUI apps to agent-usable CLIs | Optional |
@@ -31,8 +32,23 @@ Claude Code connects to external services via **MCP (Model Context Protocol)** s
 - **Gmail** — search and read emails
 - **Google Calendar** — list events, check conflicts
 - **Notion** — fetch, create, update, and move pages
+- **Granola** — list meetings, get transcripts, query meeting notes with natural language
 
 These are available as built-in connectors when you run Claude Code on [claude.ai/code](https://claude.ai/code) or via the CLI with the appropriate MCP server configuration.
+
+### Granola Setup (Optional)
+
+[Granola](https://www.granola.so/) is an AI meeting notes app that records, transcribes, and summarizes your meetings. The MCP integration lets Claude access your meeting history.
+
+1. Install Granola from [granola.so](https://www.granola.so/) and use it for your meetings
+2. The Granola MCP server connects automatically via Claude Code — no manual configuration needed
+3. Once connected, Claude can query your meetings with natural language
+
+Available tools:
+- `query_granola_meetings` — "what action items came from yesterday's standup?"
+- `list_meetings` — list meetings by time range
+- `get_meetings` — detailed meeting info (notes, summary, attendees)
+- `get_meeting_transcript` — full verbatim transcript
 
 ## Prerequisites & Installation
 
@@ -265,10 +281,16 @@ Extract task name, status, and due date.
 Filter by your priority rules.
 For each relevant email: who writes, what they want, recommended action.
 
-4. Send the briefing to Telegram (chat_id: YOUR_CHAT_ID) with format:
+4. Recap yesterday's meetings from Granola (use MCP tools):
+- Use query_granola_meetings with query "action items and decisions from yesterday's meetings"
+- For each meeting: title, attendees, key decisions, action items
+- If no meetings yesterday, skip this section
+
+5. Send the briefing to Telegram (chat_id: YOUR_CHAT_ID) with format:
 ☀️ MORNING BRIEFING — [date]
 📅 TODAY'S AGENDA (events + conflicts)
 📋 OPEN TASKS (🔴 overdue, ⏰ urgent, 🔵 in progress, ⚪ not started)
+🎙️ YESTERDAY'S MEETINGS (title, action items, decisions — if any)
 📧 EMAILS TO HANDLE (summary + action)
 Have a great day! 🚀
 
@@ -399,6 +421,10 @@ Claude Code accesses external services via MCP (Model Context Protocol):
 - `notion-update-page` — update existing pages
 - `notion-move-pages` — move pages between parents (e.g., Inspirations → Planning)
 - `notion-search` — search across Notion workspace
+- `query_granola_meetings` — natural language search across meeting notes
+- `list_meetings` — list Granola meetings by time range
+- `get_meetings` — detailed meeting info (notes, AI summary, attendees)
+- `get_meeting_transcript` — full verbatim meeting transcript
 
 ### Telegram Channel
 
@@ -411,6 +437,9 @@ The `--channels plugin:telegram@claude-plugins-official` flag enables real-time 
 - **Weekly review cron** — summarize the week's accomplishments every Friday
 - **Meeting prep** — 30 minutes before each meeting, pull relevant emails and notes
 - **Expense tracking** — monitor receipt emails and log them to a Notion database
+- **Meeting recap in briefing** — add Granola meeting notes to the morning briefing with action items and decisions from yesterday
+- **Pre-meeting prep** — before each meeting, pull notes from previous meetings with the same attendees
+- **Follow-up tracking** — query Granola for commitments and todos from recent meetings
 - **Send emails directly** — use OpenCLI to send Gmail drafts without leaving the terminal
 - **Control Spotify** — `opencli spotify play/pause/search` via Telegram commands
 - **Social media monitoring** — `opencli twitter trending` / `opencli reddit hot` in a cron

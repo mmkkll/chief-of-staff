@@ -59,6 +59,7 @@ Notion: Inspirations → Planning → Ready to Travel
 | [Notion](https://www.notion.so/) | Tasks, travel documents, knowledge base |
 | [Google Calendar](https://calendar.google.com/) | Event management, conflict detection |
 | [Gmail](https://mail.google.com/) | Email monitoring, draft creation |
+| [Granola](https://www.granola.so/) | Meeting notes, transcripts, action items |
 | [n8n](https://n8n.io/) | Workflow automation, multi-model AI queries |
 | [Playwright](https://playwright.dev/) | Browser automation for price scraping |
 | [OpenCLI](https://github.com/jackwener/OpenCLI) | Browser-based automation via Chrome |
@@ -107,7 +108,7 @@ Claude reads your `CLAUDE.md` on startup, configures all cron jobs automatically
 ## Key Features
 
 ### Daily Briefing (07:28)
-Notion tasks + Google Calendar events + Gmail scan → formatted Telegram message with priorities, conflicts, and recommended actions.
+Notion tasks + Google Calendar events + Granola meeting recap + Gmail scan → formatted Telegram message with priorities, conflicts, yesterday's action items, and recommended actions.
 
 ### Email Monitoring (every 2h)
 Scans Gmail across multiple labels, classifies by priority (HIGH/MEDIUM/IGNORE), checks calendar for mentioned dates, recommends actions. Zero noise — only notifies when there's something to handle.

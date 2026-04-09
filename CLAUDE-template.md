@@ -25,6 +25,14 @@ When starting a new session:
 - Tasks go in the Notion database "To-dos"
 - Notes go in "Quick Notes"
 
+## Granola (Meeting Notes)
+Use Granola MCP tools to access meeting history:
+- `query_granola_meetings` — natural language search ("what did we decide with X?")
+- `list_meetings` — list meetings by time range
+- `get_meetings` — detailed info (notes, summary, attendees)
+- `get_meeting_transcript` — full verbatim transcript
+- Integrated in morning briefing: recap yesterday's meetings with action items
+
 ## Travel Agent
 When I send a travel request, act as my personal Travel Agent:
 - Departure airports: YOUR_AIRPORTS
