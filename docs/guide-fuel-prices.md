@@ -366,7 +366,9 @@ To use this system outside Italy:
 
 ## Extension: EV Charging Stations
 
-Government fuel data **does not cover EV charging points**. For that, use [Open Charge Map](https://openchargemap.org/site/develop/api) — a free, global, community-maintained registry that exposes a public REST API. **No API key is required for basic use** (rate-limited but generous).
+Government fuel data **does not cover EV charging points**. For that, use [Open Charge Map](https://openchargemap.org/site/develop/api) — a free, global, community-maintained registry that exposes a public REST API.
+
+> ⚠️ **As of April 2026, anonymous OCM access returns `403 — You must specify an API key`.** Registration is free (just an email) and the personal-tier key is more than enough for a Chief of Staff use case. Combine OCM with **OpenStreetMap Overpass** as a no-key fallback for resilience and broader coverage.
 
 ### Coverage
 
@@ -380,8 +382,12 @@ Government fuel data **does not cover EV charging points**. For that, use [Open 
 ### API Endpoint
 
 ```
-https://api.openchargemap.io/v3/poi/?output=json&latitude=43.4833&longitude=11.7833&distance=10&distanceunit=KM&maxresults=5&compact=true&verbose=false
+https://api.openchargemap.io/v3/poi/?output=json&latitude=43.4833&longitude=11.7833&distance=10&distanceunit=KM&maxresults=10&key=YOUR_OCM_KEY
 ```
+
+Store your key outside the repo (e.g. `~/mission-control/.secrets/openchargemap.key`, `chmod 600`) and read it at query time. **Never commit the key.**
+
+> ⚠️ Avoid `compact=true&verbose=false` — it strips `OperatorInfo.Title`, `ConnectionType.Title`, and `StatusType` and replaces them with bare IDs. The default response is more verbose but keeps the human-readable fields you actually need to render results.
 
 ### Useful Parameters
 
@@ -429,46 +435,119 @@ Each Point of Interest (`POI`) includes:
 
 Charging prices are **not** available via Open Charge Map — they vary by operator, contract, and time of day. Show the operator name and connector power, and direct the user to the operator's app (Enel X, BeCharge, Ionity, Tesla, EVgo, etc.) to check the current rate.
 
-### Python Snippet
+### Python Snippet — OCM + OSM Overpass merge
 
 ```python
 import json
+import math
+import os
+import urllib.parse
 import urllib.request
 
 LAT, LON = 43.4833, 11.7833
 RADIUS_KM = 10
 MAX_RESULTS = 5
 
-url = (
+# Load OCM key from a file outside the repo
+with open(os.path.expanduser("~/mission-control/.secrets/openchargemap.key")) as f:
+    OCM_KEY = f.read().strip()
+
+def haversine(la1, lo1, la2, lo2):
+    R = 6371
+    dla = math.radians(la2 - la1)
+    dlo = math.radians(lo2 - lo1)
+    a = (math.sin(dla / 2) ** 2 +
+         math.cos(math.radians(la1)) * math.cos(math.radians(la2)) *
+         math.sin(dlo / 2) ** 2)
+    return R * 2 * math.asin(math.sqrt(a))
+
+# --- Source 1: Open Charge Map ---
+ocm_url = (
     "https://api.openchargemap.io/v3/poi/"
     f"?output=json&latitude={LAT}&longitude={LON}"
     f"&distance={RADIUS_KM}&distanceunit=KM"
-    f"&maxresults={MAX_RESULTS}&compact=true&verbose=false"
+    f"&maxresults={MAX_RESULTS * 2}&key={OCM_KEY}"
 )
+ocm_req = urllib.request.Request(ocm_url, headers={"User-Agent": "Mozilla/5.0"})
+ocm_data = json.load(urllib.request.urlopen(ocm_req, timeout=30))
 
-req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-data = json.load(urllib.request.urlopen(req, timeout=30))
-
-# Filter operational stations and sort by distance
-stations = [
-    p for p in data
-    if p.get("StatusType", {}).get("IsOperational")
-]
-stations.sort(key=lambda p: p.get("AddressInfo", {}).get("Distance", 9999))
-
-for i, p in enumerate(stations[:MAX_RESULTS], 1):
-    addr = p.get("AddressInfo", {})
-    op = p.get("OperatorInfo", {}).get("Title", "Unknown")
-    conns = p.get("Connections", []) or []
+ocm_stations = []
+for p in ocm_data:
+    addr = p.get("AddressInfo") or {}
+    if not (p.get("StatusType") or {}).get("IsOperational", True):
+        continue
+    conns = p.get("Connections") or []
     conn_str = ", ".join(
-        f"{c.get('ConnectionType', {}).get('Title', '?')} {c.get('PowerKW', '?')} kW"
+        f"{(c.get('ConnectionType') or {}).get('Title', '?')} {c.get('PowerKW', '?')}kW"
         for c in conns
-    )
-    print(f"{i}. {op} — {addr.get('Title', '?')}")
-    print(f"   📍 {addr.get('AddressLine1', '')}, {addr.get('Town', '')}")
-    print(f"   📏 {addr.get('Distance', '?'):.1f} km")
-    print(f"   ⚡ {conn_str}")
-    print(f"   🔢 {p.get('NumberOfPoints', '?')} charge points")
+    ) or "n/a"
+    ocm_stations.append({
+        "lat": addr.get("Latitude"),
+        "lon": addr.get("Longitude"),
+        "operator": (p.get("OperatorInfo") or {}).get("Title") or "Unknown",
+        "name": addr.get("Title", ""),
+        "address": ", ".join(filter(None, [addr.get("AddressLine1", ""), addr.get("Town", "")])),
+        "distance": addr.get("Distance"),
+        "connectors": conn_str,
+        "points": p.get("NumberOfPoints"),
+        "source": "OCM",
+    })
+
+# --- Source 2: OpenStreetMap Overpass (no key, use Kumi mirror) ---
+osm_query = (
+    f'[out:json][timeout:25];'
+    f'nwr["amenity"="charging_station"](around:{RADIUS_KM * 1000},{LAT},{LON});'
+    f'out center tags;'
+)
+osm_req = urllib.request.Request(
+    "https://overpass.kumi.systems/api/interpreter",
+    data=urllib.parse.urlencode({"data": osm_query}).encode(),
+    headers={"User-Agent": "Mozilla/5.0"},
+)
+osm_stations = []
+try:
+    osm_raw = urllib.request.urlopen(osm_req, timeout=40).read()
+    osm_data = json.loads(osm_raw)
+    for el in osm_data.get("elements", []):
+        tags = el.get("tags") or {}
+        if el.get("type") == "node":
+            la, lo = el.get("lat"), el.get("lon")
+        else:
+            c = el.get("center") or {}
+            la, lo = c.get("lat"), c.get("lon")
+        if la is None or lo is None:
+            continue
+        osm_stations.append({
+            "lat": la,
+            "lon": lo,
+            "operator": tags.get("operator") or tags.get("network") or tags.get("brand") or "Unknown",
+            "name": tags.get("name", ""),
+            "address": " ".join(filter(None, [tags.get("addr:street", ""), tags.get("addr:housenumber", "")])).strip(),
+            "distance": haversine(LAT, LON, la, lo),
+            "connectors": "",  # OSM tags vary; parse socket:* if needed
+            "points": tags.get("capacity"),
+            "source": "OSM",
+        })
+except Exception:
+    pass  # OSM is best-effort fallback
+
+# --- Merge: prefer OCM on overlaps (< 80 m apart) ---
+merged = list(ocm_stations)
+for o in osm_stations:
+    if any(haversine(o["lat"], o["lon"], m["lat"], m["lon"]) < 0.08 for m in merged):
+        continue  # duplicate of an OCM station
+    merged.append(o)
+
+merged.sort(key=lambda s: s.get("distance") or 9999)
+
+for i, s in enumerate(merged[:MAX_RESULTS], 1):
+    print(f"{i}. {s['operator']} — {s['name'] or '(unnamed)'}")
+    print(f"   📍 {s['address']}")
+    print(f"   📏 {s['distance']:.1f} km   [{s['source']}]")
+    if s["connectors"]:
+        print(f"   ⚡ {s['connectors']}")
+    if s["points"]:
+        print(f"   🔢 {s['points']} points")
 ```
 
 ### Telegram Output Format
@@ -497,11 +576,33 @@ Add these to your skill's trigger list to route requests to EV mode:
 
 When a Telegram location pin arrives without text, default to fuel mode. Switch to EV mode only if the text mentions one of the trigger words above.
 
-### Rate Limits & API Key
+### Get Your Own Open Charge Map API Key
 
-Open Charge Map's basic endpoint works without authentication, but rate limits apply (a few hundred requests per hour per IP). For higher volumes:
-1. Register at https://openchargemap.org/site/loginprovider/beginlogin
-2. Request an API key from your account page
-3. Pass it as `key=YOUR_KEY` in the query string
+Anonymous access **no longer works** as of April 2026 — the public endpoint returns `403 — You must specify an API key using the key query parameter or x-api-key header`. Registration is free, takes about 60 seconds, and the personal-tier key is more than enough for a Chief of Staff use case.
 
-For a personal Chief of Staff use case, anonymous access is more than enough.
+**Steps:**
+
+1. **Sign in** at https://openchargemap.org/site/loginprovider/beginlogin — you can use Google, Microsoft, GitHub, Apple, or any OpenID provider. No password to remember.
+2. **Open your profile** → your name in the top-right of the site → **My Profile** → **My Apps** (or directly: https://openchargemap.org/site/profile/applications).
+3. Click **Register an Application** and fill in:
+   - **App name**: anything (e.g. "chief-of-staff" or "personal-fuel-finder")
+   - **Description**: short purpose (e.g. "Personal Telegram bot to find EV charging stations near me")
+   - **Website**: your repo URL or just `https://github.com/<your-user>` — any valid URL works
+4. Submit. The page now shows your **API key** — a UUID like `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`. Copy it.
+5. **Store it outside the repo.** Anywhere git won't see it. Recommended:
+   ```bash
+   mkdir -p ~/mission-control/.secrets
+   echo 'YOUR_OCM_KEY_HERE' > ~/mission-control/.secrets/openchargemap.key
+   chmod 600 ~/mission-control/.secrets/openchargemap.key
+   ```
+   And add `.secrets/` to your `.gitignore`. **Never commit this file.**
+6. The skill reads it at query time:
+   ```bash
+   key=$(cat ~/mission-control/.secrets/openchargemap.key)
+   ```
+
+**Tier limits:** the free personal tier is rate-limited (a few hundred requests per hour per key), which is more than enough for a personal assistant. If you ever hit the limit you can request a higher tier from the same My Apps page.
+
+**Rotation:** if a key leaks, generate a new one from My Apps and revoke the old one. The skill will pick up the new key from the file on the next query — no code change needed.
+
+**Without a key:** the skill falls back to OpenStreetMap Overpass (no key required) but data quality is lower — addresses, capacities, and connector details are often missing for smaller operators.

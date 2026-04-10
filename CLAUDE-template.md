@@ -86,8 +86,9 @@ When I say "send" / "mail it":
 When asked about fuel prices, cheapest gas station, or EV charging stations:
 - Follow the skill in `skills/fuel-prices.md`
 - **Fuel**: source = government open data CSV (downloaded fresh each query). Default: Diesel, self-service, 10 km radius from YOUR_HOME_COORDINATES. Return top 3 cheapest stations: name, price, address, distance.
-- **EV charging**: source = Open Charge Map API (free, no API key). Default: 10 km radius, max 5 stations. Show operator, address, distance, connectors + power kW, number of charge points. Prices are not in the API — suggest the operator's app.
+- **EV charging**: query Open Charge Map (API key required, see skill for how to register a free one) **and** OpenStreetMap Overpass (no key) in parallel, then merge by geographic proximity. Default: 10 km radius, max 5 stations. Show operator, address, distance, connectors + power kW, number of charge points. Prices are not available — suggest the operator's app.
 - EV triggers: "EV charging", "charging station", "charge point", "colonnina"
+- **Secrets**: store the OCM API key in `~/mission-control/.secrets/openchargemap.key` (chmod 600). Add `.secrets/` to `.gitignore` and never commit it.
 
 ## Local Tools
 
