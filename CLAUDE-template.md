@@ -82,12 +82,12 @@ When I say "send" / "mail it":
 - Signature: "Best regards, YOUR_NAME"
 - Tone: warm and professional, never bureaucratic
 
-## Fuel Prices
-When asked about fuel prices or cheapest gas station:
+## Fuel Prices & EV Charging
+When asked about fuel prices, cheapest gas station, or EV charging stations:
 - Follow the skill in `skills/fuel-prices.md`
-- Source: government open data CSV (downloaded fresh each query)
-- Default: Diesel, self-service, 10 km radius from YOUR_HOME_COORDINATES
-- Return top 3 cheapest stations: name, price, address, distance
+- **Fuel**: source = government open data CSV (downloaded fresh each query). Default: Diesel, self-service, 10 km radius from YOUR_HOME_COORDINATES. Return top 3 cheapest stations: name, price, address, distance.
+- **EV charging**: source = Open Charge Map API (free, no API key). Default: 10 km radius, max 5 stations. Show operator, address, distance, connectors + power kW, number of charge points. Prices are not in the API — suggest the operator's app.
+- EV triggers: "EV charging", "charging station", "charge point", "colonnina"
 
 ## Local Tools
 

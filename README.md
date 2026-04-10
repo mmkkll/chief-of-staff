@@ -11,6 +11,7 @@ Chief of Staff turns [Claude Code](https://docs.anthropic.com/en/docs/claude-cod
 - **Reminds you** of unanswered emails before end of day
 - Manages your **travel**: researches trips, tracks real hotel prices, organizes booking confirmations, and handles the full trip lifecycle on Notion
 - Finds the **cheapest fuel stations** near any location using government open data
+- Finds the **nearest EV charging stations** with operator, connectors and power via Open Charge Map
 - Communicates with you via **Telegram** in real-time (text, voice, photos, location pins)
 - Connects to **Notion**, **Google Calendar**, **Gmail**, **n8n**, and more via MCP
 
@@ -22,7 +23,7 @@ Everything runs locally. Your data stays on your machine. No cloud services requ
 |-------|------------------|
 | [Mission Control](docs/guide-mission-control.md) | The core system: cron jobs, email monitoring, task management, Telegram integration |
 | [Travel Agent & Organizer](docs/guide-travel-system.md) | Multi-model travel research, hotel price scraping, automatic booking organization, trip lifecycle management |
-| [Fuel Price Finder](docs/guide-fuel-prices.md) | Real-time fuel prices from government open data, Telegram location support |
+| [Fuel Price Finder](docs/guide-fuel-prices.md) | Real-time fuel prices from government open data + EV charging stations from Open Charge Map, Telegram location support |
 
 ## Architecture
 
@@ -119,8 +120,8 @@ Multi-model research (Gemini + Perplexity via n8n), real hotel prices from Googl
 ### Travel Organizer (every 2h)
 Automatically finds booking confirmations in email, matches to existing trips, organizes on Notion. 48h before departure: completeness checklist + weather. Day of departure: auto-moves to "Ready to Travel".
 
-### Fuel Price Finder
-Government open data (no API key), Haversine distance calculation, top 3 cheapest stations. Works with Telegram location pins (requires plugin patch included in the guide).
+### Fuel Price Finder & EV Charging
+Government open data (no API key), Haversine distance calculation, top 3 cheapest fuel stations. Plus EV charging via Open Charge Map (free, no API key): top 5 stations with operator, connectors, power and number of charge points. Works with Telegram location pins (requires plugin patch included in the guide).
 
 ### Email Sending via OpenCLI
 Gmail MCP can only create drafts. OpenCLI opens Gmail in your Chrome and clicks Send — fully automated, no manual intervention.

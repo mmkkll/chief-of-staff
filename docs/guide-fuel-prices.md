@@ -1,12 +1,14 @@
-# Build a Real-Time Fuel Price Finder with Claude Code
+# Build a Real-Time Fuel Price & EV Charging Finder with Claude Code
 
-A step-by-step guide to building a fuel price lookup system that finds the cheapest gas stations near any location, using government open data and Telegram for on-the-go queries.
+A step-by-step guide to building a fuel price lookup system that finds the cheapest gas stations — and the nearest EV charging stations — near any location, using government open data, Open Charge Map, and Telegram for on-the-go queries.
 
 ## What You'll Build
 
 A system that:
 - Finds the **3 cheapest fuel stations** near any location
-- Uses **government open data** (updated daily) — no API keys needed
+- Finds the **5 nearest EV charging stations** with operator, connectors and power
+- Uses **government open data** (updated daily) — no API keys needed for fuel
+- Uses **Open Charge Map API** (free, no API key needed for basic use) for EV charging
 - Works via **Telegram**: send a location pin or type a place name
 - Supports **multiple fuel types**: diesel, gasoline, LPG, CNG
 - Calculates **real distances** using the Haversine formula
@@ -359,3 +361,147 @@ To use this system outside Italy:
 - **Self-service vs attended** — self-service is almost always cheaper. Default to self-service unless asked otherwise
 - **Combine with travel** — when the Travel Agent plans a road trip, automatically include fuel stops along the route
 - **Night hours** — some stations are self-service only at night, which may affect availability
+
+---
+
+## Extension: EV Charging Stations
+
+Government fuel data **does not cover EV charging points**. For that, use [Open Charge Map](https://openchargemap.org/site/develop/api) — a free, global, community-maintained registry that exposes a public REST API. **No API key is required for basic use** (rate-limited but generous).
+
+### Coverage
+
+| Region | Coverage |
+|--------|----------|
+| Europe | Excellent (Italy, France, Germany, Spain, UK, Nordics, NL, BE, etc.) |
+| North America | Excellent |
+| Asia/Oceania | Good (varies by country) |
+| South America/Africa | Limited but growing |
+
+### API Endpoint
+
+```
+https://api.openchargemap.io/v3/poi/?output=json&latitude=43.4833&longitude=11.7833&distance=10&distanceunit=KM&maxresults=5&compact=true&verbose=false
+```
+
+### Useful Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `latitude` / `longitude` | Reference position (decimal) |
+| `distance` | Search radius |
+| `distanceunit` | `KM` or `MI` |
+| `maxresults` | Number of results to return |
+| `connectiontypeid` | Filter by connector: `25` = Type 2, `33` = CCS, `2` = CHAdeMO, `27` = Tesla Supercharger |
+| `levelid` | `2` = AC slow, `3` = DC fast |
+| `operatorid` | Filter by operator (Ionity, Tesla, Enel X, BeCharge, EVgo, etc.) |
+| `compact=true` | Reduces response size |
+| `verbose=false` | Removes extra metadata |
+
+### Returned Fields
+
+Each Point of Interest (`POI`) includes:
+
+```json
+{
+  "ID": 12345,
+  "OperatorInfo": { "Title": "Enel X" },
+  "AddressInfo": {
+    "Title": "Stazione di ricarica",
+    "AddressLine1": "Via Roma 1",
+    "Town": "Levane",
+    "Latitude": 43.518,
+    "Longitude": 11.628,
+    "Distance": 0.4
+  },
+  "Connections": [
+    {
+      "ConnectionType": { "Title": "CCS (Type 2)" },
+      "PowerKW": 150,
+      "Quantity": 2
+    }
+  ],
+  "StatusType": { "IsOperational": true },
+  "NumberOfPoints": 4
+}
+```
+
+### Important: Pricing Is Not in the API
+
+Charging prices are **not** available via Open Charge Map — they vary by operator, contract, and time of day. Show the operator name and connector power, and direct the user to the operator's app (Enel X, BeCharge, Ionity, Tesla, EVgo, etc.) to check the current rate.
+
+### Python Snippet
+
+```python
+import json
+import urllib.request
+
+LAT, LON = 43.4833, 11.7833
+RADIUS_KM = 10
+MAX_RESULTS = 5
+
+url = (
+    "https://api.openchargemap.io/v3/poi/"
+    f"?output=json&latitude={LAT}&longitude={LON}"
+    f"&distance={RADIUS_KM}&distanceunit=KM"
+    f"&maxresults={MAX_RESULTS}&compact=true&verbose=false"
+)
+
+req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+data = json.load(urllib.request.urlopen(req, timeout=30))
+
+# Filter operational stations and sort by distance
+stations = [
+    p for p in data
+    if p.get("StatusType", {}).get("IsOperational")
+]
+stations.sort(key=lambda p: p.get("AddressInfo", {}).get("Distance", 9999))
+
+for i, p in enumerate(stations[:MAX_RESULTS], 1):
+    addr = p.get("AddressInfo", {})
+    op = p.get("OperatorInfo", {}).get("Title", "Unknown")
+    conns = p.get("Connections", []) or []
+    conn_str = ", ".join(
+        f"{c.get('ConnectionType', {}).get('Title', '?')} {c.get('PowerKW', '?')} kW"
+        for c in conns
+    )
+    print(f"{i}. {op} — {addr.get('Title', '?')}")
+    print(f"   📍 {addr.get('AddressLine1', '')}, {addr.get('Town', '')}")
+    print(f"   📏 {addr.get('Distance', '?'):.1f} km")
+    print(f"   ⚡ {conn_str}")
+    print(f"   🔢 {p.get('NumberOfPoints', '?')} charge points")
+```
+
+### Telegram Output Format
+
+```
+🔌 EV CHARGING — within 10 km
+
+1. Enel X — Stazione di ricarica
+   📍 Via Roma 1, Levane
+   📏 0.4 km
+   ⚡ CCS 150 kW, Type 2 22 kW
+   🔢 4 charge points
+
+2. ...
+
+Source: Open Charge Map · Check prices in the operator's app
+```
+
+### Trigger Words
+
+Add these to your skill's trigger list to route requests to EV mode:
+- "EV charging", "charging station", "charge point"
+- "colonnina", "ricarica elettrica" (Italian)
+- "borne de recharge" (French)
+- "Ladestation" (German)
+
+When a Telegram location pin arrives without text, default to fuel mode. Switch to EV mode only if the text mentions one of the trigger words above.
+
+### Rate Limits & API Key
+
+Open Charge Map's basic endpoint works without authentication, but rate limits apply (a few hundred requests per hour per IP). For higher volumes:
+1. Register at https://openchargemap.org/site/loginprovider/beginlogin
+2. Request an API key from your account page
+3. Pass it as `key=YOUR_KEY` in the query string
+
+For a personal Chief of Staff use case, anonymous access is more than enough.
