@@ -1,0 +1,331 @@
+/* Mission Control — Dark Neumorphism with Neon
+   Canvas colors come from a single mid-dark gray and depth is expressed
+   through dual shadows (dark BR + light TL). Neon accents glow. */
+
+:root {
+  /* Canvas */
+  --bg:     #1a1c22;
+  --bg-hi:  #1e2027;  /* slightly raised (used sparingly) */
+  --bg-lo:  #14161b;  /* slightly sunken (used sparingly) */
+
+  /* Ink */
+  --ink-0:  #e9eef5;
+  --ink-1:  #9aa3b2;
+  --ink-2:  #6b7484;
+  --ink-3:  #434b5a;
+
+  /* Neon palette */
+  --neon:       #7ef3d6;  /* mint primary */
+  --neon-warm:  #ffd166;
+  --neon-hot:   #ff6b81;
+  --neon-cool:  #8ab4ff;
+
+  /* Neumorphic dual shadows
+     TL highlight + BR shadow give the "extruded from canvas" illusion */
+  --nm-shadow-raised:
+    -10px -10px 24px rgba(255, 255, 255, 0.028),
+     12px  12px 28px rgba(0, 0, 0, 0.55);
+  --nm-shadow-raised-sm:
+    -6px -6px 14px rgba(255, 255, 255, 0.03),
+     7px  7px 16px rgba(0, 0, 0, 0.5);
+  --nm-shadow-inset:
+    inset  6px  6px 14px rgba(0, 0, 0, 0.55),
+    inset -6px -6px 14px rgba(255, 255, 255, 0.025);
+  --nm-shadow-inset-sm:
+    inset  3px  3px 7px rgba(0, 0, 0, 0.5),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.025);
+
+  /* Neon glow effects */
+  --glow-mint: 0 0 14px rgba(126, 243, 214, 0.55), 0 0 26px rgba(126, 243, 214, 0.25);
+  --glow-warm: 0 0 12px rgba(255, 209, 102, 0.55), 0 0 22px rgba(255, 209, 102, 0.2);
+  --glow-hot:  0 0 14px rgba(255, 107, 129, 0.55), 0 0 26px rgba(255, 107, 129, 0.2);
+}
+
+html, body { background: var(--bg); }
+body {
+  color: var(--ink-0);
+  font-feature-settings: "cv11", "ss01", "ss03";
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient canvas glow — single soft radial, no grid */
+#bg-grid { display: none; }
+#bg-glow {
+  position: fixed; inset: -30% -20% auto -20%; height: 85vh; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 40% 45% at 30% 0%, rgba(126, 243, 214, 0.06), transparent 60%),
+    radial-gradient(ellipse 35% 45% at 75% 15%, rgba(138, 180, 255, 0.045), transparent 60%);
+  filter: blur(30px);
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--bg-hi);
+  border-radius: 999px;
+  box-shadow: var(--nm-shadow-inset-sm);
+  border: 2px solid var(--bg);
+  background-clip: padding-box;
+}
+
+/* ————————————————————————————————————————————————————
+   Card — neumorphic raised surface
+   ———————————————————————————————————————————————————— */
+.card {
+  position: relative;
+  background: var(--bg);
+  border: none;
+  border-radius: 24px;
+  box-shadow: var(--nm-shadow-raised);
+}
+.card::before { display: none; }
+
+.card-hover { transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 320ms; }
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    -12px -12px 28px rgba(255, 255, 255, 0.035),
+     14px  14px 32px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(126, 243, 214, 0.08);
+}
+
+.card-inset {
+  background: var(--bg);
+  border: none;
+  border-radius: 20px;
+  box-shadow: var(--nm-shadow-inset);
+}
+
+.nm-icon {
+  background: var(--bg);
+  border-radius: 12px;
+  box-shadow: var(--nm-shadow-inset-sm);
+  color: var(--neon);
+  text-shadow: 0 0 10px rgba(126, 243, 214, 0.4);
+}
+.nm-icon-lg {
+  background: var(--bg);
+  border-radius: 18px;
+  box-shadow: var(--nm-shadow-raised-sm);
+  color: var(--neon);
+}
+.nm-segmented {
+  display: inline-flex;
+  padding: 5px;
+  background: var(--bg);
+  border-radius: 14px;
+  box-shadow: var(--nm-shadow-inset-sm);
+  gap: 3px;
+}
+.nm-segmented button {
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  transition: color 240ms, box-shadow 240ms;
+}
+.nm-segmented button:hover { color: var(--ink-0); }
+.nm-segmented button.active {
+  color: var(--neon);
+  text-shadow: 0 0 8px rgba(126, 243, 214, 0.5);
+  box-shadow: var(--nm-shadow-raised-sm);
+  background: var(--bg);
+}
+
+/* ————————————————————————————————————————————————————
+   Row — subtle inset on hover to feel pressed
+   ———————————————————————————————————————————————————— */
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 14px;
+  transition: box-shadow 260ms ease, background 260ms;
+}
+.row + .row { margin-top: 4px; }
+.row:hover { box-shadow: var(--nm-shadow-inset-sm); }
+
+/* ————————————————————————————————————————————————————
+   Chips & labels
+   ———————————————————————————————————————————————————— */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  font-size: 9.5px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-1);
+  background: var(--bg);
+  border-radius: 999px;
+  box-shadow: var(--nm-shadow-inset-sm);
+}
+.chip.ok {
+  color: var(--neon);
+  text-shadow: 0 0 8px rgba(126, 243, 214, 0.6);
+  box-shadow: var(--nm-shadow-inset-sm), inset 0 0 0 1px rgba(126, 243, 214, 0.18);
+}
+.chip.warn {
+  color: var(--neon-warm);
+  text-shadow: 0 0 8px rgba(255, 209, 102, 0.55);
+  box-shadow: var(--nm-shadow-inset-sm), inset 0 0 0 1px rgba(255, 209, 102, 0.18);
+}
+.chip.hot {
+  color: var(--neon-hot);
+  text-shadow: 0 0 8px rgba(255, 107, 129, 0.55);
+  box-shadow: var(--nm-shadow-inset-sm), inset 0 0 0 1px rgba(255, 107, 129, 0.18);
+}
+
+.label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.value-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+.kbd {
+  display: inline-flex; align-items: center; padding: 3px 7px;
+  font-size: 10px; font-family: 'JetBrains Mono', ui-monospace, monospace;
+  background: var(--bg); color: var(--ink-1);
+  border-radius: 7px;
+  box-shadow: var(--nm-shadow-inset-sm);
+}
+
+/* ————————————————————————————————————————————————————
+   Status dots — neumorphic inset well with neon core
+   ———————————————————————————————————————————————————— */
+.dot {
+  position: relative;
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: var(--nm-shadow-inset-sm);
+}
+.dot::after {
+  content: ""; position: absolute; inset: 2.5px; border-radius: 999px;
+  background: var(--ink-3);
+}
+.dot.ok::after { background: var(--neon); box-shadow: var(--glow-mint); }
+.dot.warn::after { background: var(--neon-warm); box-shadow: var(--glow-warm); }
+.dot.hot::after { background: var(--neon-hot); box-shadow: var(--glow-hot); }
+
+/* ————————————————————————————————————————————————————
+   Navigation
+   ———————————————————————————————————————————————————— */
+.navitem {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: transparent;
+  white-space: nowrap;
+  transition: color 260ms, box-shadow 260ms, background 260ms;
+}
+.navitem:hover { color: var(--ink-0); box-shadow: var(--nm-shadow-inset-sm); }
+.navitem.active {
+  color: var(--neon);
+  text-shadow: 0 0 10px rgba(126, 243, 214, 0.4);
+  box-shadow: var(--nm-shadow-inset-sm);
+}
+.navitem.active::after {
+  content: "";
+  position: absolute; left: 14px; right: 14px; bottom: 3px; height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--neon), transparent);
+  box-shadow: 0 0 10px rgba(126, 243, 214, 0.7);
+}
+.navitem .idx {
+  font-size: 9px;
+  color: var(--ink-3);
+  opacity: 0.8;
+}
+
+/* ————————————————————————————————————————————————————
+   Buttons — raised by default, inset when pressed/ghost
+   ———————————————————————————————————————————————————— */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 11px 18px;
+  border-radius: 14px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--neon);
+  background: var(--bg);
+  box-shadow: var(--nm-shadow-raised-sm);
+  text-shadow: 0 0 8px rgba(126, 243, 214, 0.4);
+  transition: box-shadow 260ms ease, transform 180ms, color 200ms;
+}
+.btn:hover {
+  box-shadow:
+    -7px -7px 16px rgba(255, 255, 255, 0.035),
+     8px  8px 18px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(126, 243, 214, 0.22);
+}
+.btn:active {
+  box-shadow: var(--nm-shadow-inset-sm);
+  transform: translateY(1px);
+}
+.btn.ghost {
+  color: var(--ink-1);
+  text-shadow: none;
+}
+.btn.ghost:hover { color: var(--ink-0); }
+
+/* ————————————————————————————————————————————————————
+   Skeleton, arrows, misc
+   ———————————————————————————————————————————————————— */
+.skel {
+  background: linear-gradient(90deg, rgba(255,255,255,0.025), rgba(255,255,255,0.06), rgba(255,255,255,0.025));
+  background-size: 200% 100%;
+  animation: skel 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+@keyframes skel {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.enter { opacity: 0; transform: translateY(10px); }
+
+.arrow { transition: transform 200ms; }
+.group:hover .arrow { transform: translateX(3px); }
+
+/* Content kanban drop zones */
+.content-drop {
+  padding: 10px;
+  border-radius: 18px;
+  transition: box-shadow 200ms, background 200ms;
+}
+.content-drop.drop-active {
+  box-shadow: var(--nm-shadow-inset-sm), inset 0 0 0 1px rgba(126, 243, 214, 0.35);
+  background: rgba(126, 243, 214, 0.03);
+}
+.content-card { cursor: grab; }
+.content-card:active { cursor: grabbing; }
+
+/* Header bar — neumorphic floating dock */
+header.mc-header {
+  background: var(--bg);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    0 -1px 0 0 rgba(255, 255, 255, 0.03) inset;
+}

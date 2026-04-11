@@ -5,3 +5,10 @@ node_modules/
 *.log
 *.key
 /scripts/package-lock.json
+
+# Dashboard runtime state
+/dashboard/.server.pid
+/dashboard/.chrome-profile/
+/dashboard/cache/*.json
+/dashboard/cache/*.jsonl
+!/dashboard/cache/.gitkeep

@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-04-11
+
+### Added
+- **Mission Control Dashboard** — local web UI on port 3848 with 8 pages (Home / Ops / Agents / Chat / Content / Comms / Knowledge / Travel). Dark neumorphism + neon design, vanilla Node HTTP server, static HTML SPA with Motion One animations — zero build step. Opens in a Chrome app window via `scripts/dashboard-launch.sh open`.
+- **Content Engine Daily cron** (5th cron, `0 17 * * *`) — WebSearch across configurable thematic buckets, picks 3 stories forcing bucket diversity, enriches each with additional WebSearch queries (cross-verification + numerical data points + editorial angles), and writes them to a Notion Content Pipeline database as new entries in "Ideas backlog".
+- **Notion Content Pipeline database schema** — single database with `Stage` select property (Ideas backlog / Draft / Ready to publish / Published), `Type` select (Article / Long form / Social post / Podcast segment / Keynote / Speech / Lecture), Platform / Priority / Tags multi-selects, Due / Scheduled dates, AI-generated checkbox, URL field, Notes rich text.
+- **Dashboard content kanban** — drag-drop cards between stages updates the Notion `Stage` property via `POST /api/content-pipeline/move`. New items created via `POST /api/content-pipeline/create`.
+- **Dashboard link click interceptor** — global click handler routes external links through `POST /api/open` → macOS `open -a <App> <url>` for known hosts (Notion / Sunsama / Granola desktop apps), fallback to default browser for everything else. Avoids opening empty Chromium profiles.
+- **Dashboard Telegram relay** — Chat page composes messages and sends them via the Telegram bot as a one-way notification to yourself (useful for memos when at the Mac mini).
+- **`docs/guide-content-engine.md`** — full guide for setting up the daily content pipeline, including the Notion database schema and the cron prompt.
+- **`docs/guide-dashboard.md`** — full guide for installing and extending the Mission Control Dashboard (architecture, API routes, views, design tokens).
+- **`scripts/dashboard-launch.sh`** — idempotent launcher (start / stop / status / open) that also opens a Chrome app-mode window with an isolated profile.
+
+### Changed
+- **Startup step in `CLAUDE-template.md`** and `mission-control-template.md` — now lists **5 cron jobs** (was 4) and includes a step 5 to launch the Mission Control Dashboard in Chromium on every session start.
+- **`docs/guide-mission-control.md`** — template example updated with the 5th cron, the dashboard launch step, new guide cross-links, and the Content Pipeline DB entry in Technical References.
+- **README.md** — added Content Engine and Dashboard sections, updated file structure, added new guides to the index, bumped version to 1.2.0.
+- **`.gitignore`** — exclude dashboard runtime state (`dashboard/.server.pid`, `dashboard/.chrome-profile/`, cache JSON/JSONL files).
+
+### Notes
+- The dashboard's `server.mjs` reads tokens and database IDs from environment variables (`NOTION_TOKEN`, `TELEGRAM_TOKEN`, etc.) with `YOUR_*` placeholders as fallback. Set them via your shell before running or edit the file directly on first setup.
+- The content pipeline MUST be a single Notion database, not 4 subpages — the Notion API does not support moving pages between parents, so subpage-based kanban cannot support drag-drop. See `docs/guide-content-engine.md` for the full rationale.
+- Views in `dashboard/public/views/` use a `.enter` class that starts at `opacity: 0` and is animated in via `enterStagger('.enter', container)`. New views must call `enterStagger` after setting `innerHTML` or cards stay invisible.
+
 ## [1.1.0] — 2026-04-10
 
 ### Added

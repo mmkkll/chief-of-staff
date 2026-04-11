@@ -10,6 +10,8 @@ An AI-powered Chief of Staff that:
 - **Reminds you** of unanswered emails before the end of the workday
 - Communicates with you via **Telegram** in real-time
 - Connects to **Notion** for task management and **Google Calendar** for scheduling
+- Runs a daily **Content Engine** that researches topics of interest via WebSearch and drops 3 diversified editorial ideas into a Notion kanban every day (see [Content Engine guide](guide-content-engine.md))
+- Opens a local **Mission Control Dashboard** in Chromium on launch, visualizing services/crons/tasks/travel/content in a dark neumorphism UI (see [Dashboard guide](guide-dashboard.md))
 
 ## Tech Stack
 
@@ -133,11 +135,17 @@ Create `~/mission-control/CLAUDE.md`:
 [Describe yourself: role, responsibilities, preferences, timezone]
 
 ## Startup — execute on every session start
-When starting a new session:
-1. Configure all recurring tasks from mission-control.md — do not ask for confirmation
+When starting a new session (or when I say "restart/launch Mission Control"):
+1. Configure all **5 recurring cron jobs** from mission-control.md — do not ask for confirmation:
+   - Morning briefing `28 7 * * *`
+   - Email monitoring `7 */2 * * *`
+   - Overdue email reminder `57 16 * * 1-5`
+   - Travel document organizer `37 */2 * * *`
+   - Content feed daily `0 17 * * *`
 2. Verify the tools server (port 3847) is running: `curl -s http://localhost:3847/health`. If down, start it: `node ~/mission-control/scripts/hotel-scraper-server.mjs &`
 3. Verify n8n is running: `curl -s http://localhost:5678/healthz`. If down, alert me
 4. Verify Telegram connection by sending a test message to chat_id YOUR_CHAT_ID
+5. Launch the Mission Control Dashboard in Chromium: `~/mission-control/scripts/dashboard-launch.sh open` (starts the local server on port 3848 or reuses if up, then opens a Chrome app window). Confirm on Telegram that the dashboard is accessible at http://localhost:3848.
 
 ## Behavior
 - You are my Chief of Staff and executive assistant
@@ -357,11 +365,28 @@ cron prompt. In summary, this cron:
 
 ---
 
+## 5. Content Feed Daily (daily at 17:00)
+
+- **Cron**: `0 17 * * *`
+- **Prompt**:
+
+See the [Content Engine guide](guide-content-engine.md) for the full
+cron prompt. In summary, this cron:
+1. Runs WebSearch queries across your thematic buckets (AI, hotels, marketing, etc.)
+2. Picks 3 stories forcing bucket diversity (never 3 from the same topic)
+3. Enriches each with 1-2 additional WebSearch queries for cross-verification and data points
+4. Proposes 3 editorial angles per pick (LinkedIn post, keynote slide, podcast segment…)
+5. Creates 3 new pages in a Notion Content Pipeline database, stage "Ideas backlog"
+6. Notifies Telegram with 3 links to review in the Mission Control Dashboard kanban
+
+---
+
 ## Technical References
 
 - **Telegram chat_id**: YOUR_CHAT_ID
 - **Telegram bot token**: YOUR_BOT_TOKEN
 - **Notion database To-dos**: YOUR_DATABASE_ID
+- **Notion database Content Pipeline**: YOUR_CONTENT_DB_ID (data source: YOUR_CONTENT_DATA_SOURCE_ID)
 - **Notion API token**: YOUR_NOTION_TOKEN
 - **Notion Travel > Inspirations**: YOUR_INSPIRATIONS_PAGE_ID
 - **Notion Travel > Planning**: YOUR_PLANNING_PAGE_ID
@@ -371,6 +396,7 @@ cron prompt. In summary, this cron:
 - **iCloud IMAP** (optional): YOUR_ICLOUD_EMAIL / imap.mail.me.com:993 / YOUR_APP_PASSWORD
 - **Tools server**: localhost:3847 (POST /scrape, POST /icloud-search)
 - **n8n webhooks**: travel-agent, hotel-prices, icloud-search on localhost:5678
+- **Dashboard**: http://localhost:3848 (launch with `~/mission-control/scripts/dashboard-launch.sh open` — see [Dashboard guide](guide-dashboard.md))
 - **Scripts**: ~/mission-control/scripts/
 - **Launch command**: `cd ~/mission-control && claude --channels plugin:telegram@claude-plugins-official`
 - **Timezone**: YOUR_TIMEZONE
