@@ -16,6 +16,7 @@ Chief of Staff turns [Claude Code](https://docs.anthropic.com/en/docs/claude-cod
 - Shows you everything in a **Mission Control Dashboard** — a local web UI with dark neumorphism design that opens in Chromium on launch
 - Finds the **cheapest fuel stations** near any location using government open data
 - Finds the **nearest EV charging stations** with operator, connectors and power via Open Charge Map
+- Replies with **voice notes** via ElevenLabs TTS — voice briefings, voice replies to voice messages, presence-aware local playback
 - Communicates with you via **Telegram** in real-time (text, voice, photos, location pins)
 - Connects to **Notion**, **Google Calendar**, **Gmail**, **n8n**, and more via MCP
 
@@ -42,15 +43,15 @@ Everything runs locally. Your data stays on your machine. No cloud services requ
 │  MCP Tools: Gmail · Calendar · Notion · Telegram · WebSearch      │
 └───────────────────────────┬───────────────────────────────────────┘
                             │
-     ┌──────────┬───────────┼───────────┬───────────────┐
-     │          │           │           │               │
-   n8n      Tools       Telegram    OpenCLI         CLI-Anything
-  :5678     Server      Bot API    Chrome Bridge    45+ app CLIs
+     ┌──────────┬───────────┼───────────┬──────────┬──────────┐
+     │          │           │           │          │          │
+   n8n      Tools       Telegram    ElevenLabs  OpenCLI   CLI-Anything
+  :5678     Server      Bot API     TTS API    Chrome     45+ app CLIs
             :3847
-  travel-   Playwright  Real-time   Gmail Send      PM2, Mermaid
-  agent     Chromium    messaging   Gemini Hotels   LibreOffice
-  hotel-    imapflow    voice msg   79+ adapters    draw.io
-  prices    iCloud      location
+  travel-   Playwright  Real-time   Voice       Gmail     PM2, Mermaid
+  agent     Chromium    messaging   briefings   Send      LibreOffice
+  hotel-    imapflow    voice msg   OGG Opus    79+       draw.io
+  prices    iCloud      location    + Whisper   adapters
   icloud-
   search
 
@@ -67,10 +68,26 @@ Notion: Inspirations → Planning → Ready to Travel
 | [Google Calendar](https://calendar.google.com/) | Event management, conflict detection |
 | [Gmail](https://mail.google.com/) | Email monitoring, draft creation |
 | [Granola](https://www.granola.so/) | Meeting notes, transcripts, action items |
+| [ElevenLabs](https://elevenlabs.io/) | Text-to-speech for voice notes and briefings |
 | [n8n](https://n8n.io/) | Workflow automation, multi-model AI queries |
 | [Playwright](https://playwright.dev/) | Browser automation for price scraping |
 | [OpenCLI](https://github.com/jackwener/OpenCLI) | Browser-based automation via Chrome |
 | [CLI-Anything](https://github.com/HKUDS/CLI-Anything) | Convert GUI apps to agent-usable CLIs |
+
+### APIs & Keys
+
+Some features require API keys. Store them in `~/.secrets/` (gitignored).
+
+| API | Key Required | Used By | How to Get |
+|-----|:---:|---------|------------|
+| Anthropic (Claude) | **Yes** | Core runtime | [console.anthropic.com](https://console.anthropic.com/) |
+| Telegram Bot | **Yes** | All notifications, voice notes | [@BotFather](https://t.me/BotFather) on Telegram |
+| Notion | **Yes** | Tasks, travel, content pipeline | [Notion Integrations](https://www.notion.so/my-integrations) — or use the claude.ai MCP connector |
+| Google (Calendar + Gmail) | **Yes** | Briefing, email monitor | Claude.ai MCP connectors (no manual key needed) |
+| ElevenLabs | Optional | Voice briefings, voice replies | [elevenlabs.io/api](https://elevenlabs.io/) — free tier available |
+| Open Charge Map | Optional | EV charging stations | [openchargemap.org/site/develop/api](https://openchargemap.org/site/develop/api) — free |
+| Granola | Optional | Meeting recap in briefing | Claude.ai MCP connector |
+| n8n (self-hosted) | Optional | Multi-model travel research | [n8n.io](https://n8n.io/) — runs locally, no key needed |
 
 ## Quick Start
 
@@ -108,6 +125,8 @@ Claude reads your `CLAUDE.md` on startup, configures all cron jobs automatically
 │   ├── google-hotels-scraper.mjs    # Playwright hotel price scraper
 │   ├── hotel-scraper-server.mjs     # Tools HTTP server (port 3847)
 │   ├── icloud-mail-search.mjs       # IMAP email search
+│   ├── elevenlabs-tts.mjs           # ElevenLabs TTS (MP3/OGG output, --play for local)
+│   ├── mac-presence.sh              # Detect if user is at the Mac (idle time check)
 │   └── dashboard-launch.sh          # Dashboard launcher (open/start/stop)
 ├── dashboard/
 │   ├── server.mjs               # Vanilla Node HTTP server (port 3848)
@@ -148,6 +167,15 @@ Local web UI with dark neumorphism + neon design. 8 pages (Home / Ops / Agents /
 
 ### Fuel Price Finder & EV Charging
 Government open data (no API key), Haversine distance calculation, top 3 cheapest fuel stations. Plus EV charging via Open Charge Map (free API key required, guide inside): top 5 stations with operator, connectors, power and number of charge points. Works with Telegram location pins (requires plugin patch included in the guide).
+
+### Voice Notes (ElevenLabs TTS)
+Converts text responses into natural voice notes using ElevenLabs. Three automatic triggers:
+
+- **Morning briefing** — an abridged voice summary (800–1200 chars) is generated alongside the full text briefing. If a presence script detects you're at your Mac, it also plays locally via `afplay`; otherwise it's sent as an OGG voice note on Telegram only.
+- **"Reply with voice"** — say "rispondi a voce" (or equivalent) in any message and the response is spoken back on the same channel it came from.
+- **Inbound voice messages** — when you send a Telegram voice message, it's transcribed locally with Whisper, processed, and the reply is sent back as a voice note on Telegram.
+
+Requires: an ElevenLabs API key (free tier works), `ffmpeg` for OGG Opus encoding, and optionally a local Whisper install for transcription.
 
 ### Email Sending via OpenCLI
 Gmail MCP can only create drafts. OpenCLI opens Gmail in your Chrome and clicks Send — fully automated, no manual intervention.
