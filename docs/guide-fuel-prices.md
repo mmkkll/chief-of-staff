@@ -149,7 +149,7 @@ Claude Code runs this inline when you ask for fuel prices. Here's the complete l
 import csv, io, math, urllib.request
 
 # User's location (from Telegram location or default)
-LAT0, LON0 = YOUR_LAT, YOUR_LON  # e.g., 43.4726, 11.7772
+LAT0, LON0 = YOUR_LAT, YOUR_LON  # e.g., 41.9028, 12.4964 (Rome)
 RADIUS_KM = 10
 FUEL_TYPE = 'gasolio'  # or 'benzina', 'gpl', 'metano'
 

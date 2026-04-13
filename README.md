@@ -29,6 +29,7 @@ Everything runs locally. Your data stays on your machine. No cloud services requ
 | [Mission Control](docs/guide-mission-control.md) | The core system: 5 cron jobs, email monitoring, task management, Telegram integration |
 | [Travel Agent & Organizer](docs/guide-travel-system.md) | Multi-model travel research, hotel price scraping, automatic booking organization, trip lifecycle management |
 | [Content Engine](docs/guide-content-engine.md) | Daily content ideation: WebSearch → 3 diversified ideas → Notion kanban with drag-drop |
+| [Voice Notes](docs/guide-voice.md) | ElevenLabs TTS for briefings, voice replies, and inbound voice transcription via Whisper |
 | [Mission Control Dashboard](docs/guide-dashboard.md) | Local web UI — dark neumorphism, vanilla Node + static HTML, 8 pages, live + cache data |
 | [Fuel Price Finder & EV Charging](docs/guide-fuel-prices.md) | Real-time fuel prices from government open data + EV charging stations from Open Charge Map, Telegram location support |
 

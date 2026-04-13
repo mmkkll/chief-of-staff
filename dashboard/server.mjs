@@ -39,6 +39,9 @@ const CONTENT_STAGES      = ['Ideas backlog', 'Draft', 'Ready to publish', 'Publ
 const TELEGRAM_TOKEN      = process.env.TELEGRAM_TOKEN      || 'YOUR_TELEGRAM_BOT_TOKEN';
 const TELEGRAM_CHAT       = process.env.TELEGRAM_CHAT       || 'YOUR_TELEGRAM_CHAT_ID';
 const CHAT_LOG            = join(CACHE_DIR, 'dashboard-chat.jsonl');
+const CONTENT_PREFS_LOG   = join(CACHE_DIR, 'content-preferences.jsonl');
+const CONTENT_FEED_URL    = process.env.CONTENT_FEED_URL    || '';  // e.g. https://your-feed.example.com/api/feed
+const CONTENT_FEED_KEY    = process.env.CONTENT_FEED_KEY    || '';  // API key for the feed (if required)
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -48,6 +51,8 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.woff2': 'font/woff2',
 };
@@ -151,6 +156,147 @@ function pickAppForUrl(target) {
 async function appendChatLog(entry) {
   await mkdir(CACHE_DIR, { recursive: true });
   await appendFile(CHAT_LOG, JSON.stringify(entry) + '\n');
+}
+
+async function logContentPreference(entry) {
+  await mkdir(CACHE_DIR, { recursive: true });
+  const record = { ts: new Date().toISOString(), ...entry };
+  await appendFile(CONTENT_PREFS_LOG, JSON.stringify(record) + '\n');
+}
+
+// ————————————————————————————————————————————————————————
+// Content feed scoring engine (IT↔EN bilingual)
+// ————————————————————————————————————————————————————————
+
+const STOPWORDS = new Set(['the','and','for','with','from','that','this','have','are','was','will','not','but','all','any','can','his','her','our','your','they','their','them','about','into','what','when','where','which','also','more','most','some','such','than','then','these','those','tutti','tutte','degli','delle','della','dello','dei','del','dal','dalla','dalle','che','con','per','una','uno','un','sui','sul','sulla','sulle','nel','nella','nelle','nei','non','piu','sono','come','quando','sotto','dopo','prima','fra','tra']);
+
+const IT_EN_SYNONYMS = {
+  ai: ['ai','artificial','intelligence'], ia: ['ai','artificial','intelligence'],
+  intelligenza: ['intelligence','intelligent','ai'], artificiale: ['artificial','ai'],
+  destinazione: ['destination'], destinazioni: ['destination','destinations','dmo'],
+  turistica: ['tourism','tourist','travel'], turistiche: ['tourism','tourist','travel'],
+  turismo: ['tourism','travel'], viaggio: ['travel','trip','journey'], viaggi: ['travel','trips','journeys'],
+  hotel: ['hotel','hotels','hospitality','lodging'], albergo: ['hotel','hospitality'],
+  prenotazione: ['booking','reservation'], prenotazioni: ['booking','reservations'],
+  ristorante: ['restaurant','dining','food'], ristoranti: ['restaurant','dining','food'],
+  voli: ['flight','flights','aviation','airline'], volo: ['flight','aviation','airline'],
+  aereo: ['aviation','airline','airplane'], compagnia: ['airline','carrier'],
+  treno: ['train','rail'], treni: ['train','rail'], crociera: ['cruise'], crociere: ['cruise'],
+  sostenibilita: ['sustainability','sustainable'], sostenibile: ['sustainable','sustainability'],
+  marketing: ['marketing','advertising'], ricerca: ['search','research','seo'],
+  llm: ['llm','gpt','model','chatgpt'], chatgpt: ['chatgpt','llm','openai'],
+  generativa: ['generative','ai'], agente: ['agent','agentic'], agenti: ['agent','agentic','agents'],
+  dati: ['data'], esperienza: ['experience','experiential'], esperienze: ['experience','experiential'],
+  cliente: ['customer','guest','traveler'], clienti: ['customer','guest','traveler'],
+  citta: ['city','urban'], regione: ['region','regional'], europa: ['europe','european','eu'],
+  italia: ['italy','italian'],
+};
+
+function normalizeText(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ');
+}
+
+function tokenize(s) {
+  return normalizeText(s).split(/\s+/).filter((t) => t.length >= 2 && !STOPWORDS.has(t));
+}
+
+function expandPromptTokens(tokens) {
+  const out = new Set();
+  for (const t of tokens) {
+    out.add(t);
+    if (IT_EN_SYNONYMS[t]) for (const syn of IT_EN_SYNONYMS[t]) out.add(syn);
+  }
+  return [...out];
+}
+
+function scoreArticle(art, expandedTokens) {
+  if (!expandedTokens.length) return 0;
+  const title = normalizeText(art.title);
+  const summary = normalizeText(art.summary);
+  const topics = normalizeText((art.extractedTopics || []).join(' '));
+  const category = normalizeText(art.category);
+  let score = 0;
+  for (const tok of expandedTokens) {
+    if (!tok) continue;
+    const re = new RegExp(`\\b${tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
+    score += (title.match(re) || []).length * 3
+           + (topics.match(re) || []).length * 2
+           + (category.match(re) || []).length * 2
+           + (summary.match(re) || []).length * 1;
+  }
+  return score;
+}
+
+async function fetchContentFeed(limit = 50) {
+  if (!CONTENT_FEED_URL) throw new Error('CONTENT_FEED_URL not configured');
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const headers = {};
+    if (CONTENT_FEED_KEY) headers['X-API-Key'] = CONTENT_FEED_KEY;
+    const r = await fetch(`${CONTENT_FEED_URL}?page=1&limit=${limit}`, { headers, signal: ctrl.signal });
+    if (!r.ok) throw new Error(`feed ${r.status}`);
+    const data = await r.json();
+    return data.articles || [];
+  } finally { clearTimeout(t); }
+}
+
+async function fetchExistingContentDedup() {
+  const urls = new Set();
+  const titles = new Set();
+  let cursor = undefined;
+  for (let i = 0; i < 10; i++) {
+    const body = { page_size: 100 };
+    if (cursor) body.start_cursor = cursor;
+    const data = await notionRequest(`/databases/${NOTION_CONTENT_DB}/query`, body);
+    for (const p of data.results || []) {
+      const props = p.properties || {};
+      const u = props['userDefined:URL']?.url;
+      if (u) urls.add(u.toLowerCase().trim());
+      const t = (props.Title?.title || []).map((x) => x.plain_text).join('').trim().toLowerCase();
+      if (t) titles.add(t);
+    }
+    if (!data.has_more) break;
+    cursor = data.next_cursor;
+  }
+  return { urls, titles };
+}
+
+async function createContentPageFromArticle(art, contextPrompt) {
+  const summary = (art.summary || '').slice(0, 1900);
+  const sourceLine = `${art.source || 'Feed'} · ${art.category || ''} · ${art.publishedAt || ''}`;
+  const children = [
+    { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: summary } }] } },
+    { object: 'block', type: 'paragraph', paragraph: { rich_text: [
+      { type: 'text', text: { content: 'Source: ' } },
+      { type: 'text', text: { content: art.source || art.originalUrl, link: { url: art.originalUrl } } },
+    ] } },
+    { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: sourceLine } }] } },
+  ];
+  if (contextPrompt) {
+    children.push({ object: 'block', type: 'callout', callout: {
+      icon: { type: 'emoji', emoji: '🎯' },
+      rich_text: [{ type: 'text', text: { content: `Retrieved via manual prompt: "${contextPrompt}"` } }],
+    } });
+  }
+  const props = {
+    Title: { title: [{ text: { content: art.title || 'Untitled' } }] },
+    Stage: { select: { name: 'Ideas backlog' } },
+    Type: { select: { name: 'Article' } },
+  };
+  if (art.originalUrl) props['userDefined:URL'] = { url: art.originalUrl };
+  const r = await fetch('https://api.notion.com/v1/pages', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${NOTION_TOKEN}`,
+      'notion-version': '2022-06-28',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ parent: { database_id: NOTION_CONTENT_DB }, properties: props, children }),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.message || `notion ${r.status}`);
+  return { id: data.id, url: data.url, title: art.title, source: art.source, originalUrl: art.originalUrl };
 }
 
 async function readChatLog(limit = 100) {
@@ -266,6 +412,52 @@ const ROUTES = {
         return { pid: pid === '-' ? null : Number(pid), lastExit: Number(exit) || 0, label };
       });
     return { durable, launchd: mcAgents };
+  },
+
+  '/api/session-crons': async () => {
+    try {
+      const raw = await readFile(join(CACHE_DIR, 'session-crons.json'), 'utf8');
+      return JSON.parse(raw);
+    } catch { return { crons: [] }; }
+  },
+
+  '/api/weather': async () => {
+    // Open-Meteo (no API key required). Configure via env vars:
+    //   WEATHER_LAT, WEATHER_LON, WEATHER_LOCATION
+    const lat = process.env.WEATHER_LAT || '40.4168';
+    const lon = process.env.WEATHER_LON || '-3.7038';
+    const location = process.env.WEATHER_LOCATION || 'Madrid';
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      + `&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,apparent_temperature`
+      + `&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset`
+      + `&timezone=auto&forecast_days=1`;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal });
+      if (!r.ok) throw new Error(`open-meteo ${r.status}`);
+      const d = await r.json();
+      const cur = d.current || {};
+      const daily = d.daily || {};
+      return {
+        location,
+        current: {
+          temp: cur.temperature_2m,
+          apparent: cur.apparent_temperature,
+          humidity: cur.relative_humidity_2m,
+          wind: cur.wind_speed_10m,
+          code: cur.weather_code,
+          time: cur.time,
+        },
+        today: {
+          max: daily.temperature_2m_max?.[0],
+          min: daily.temperature_2m_min?.[0],
+          code: daily.weather_code?.[0],
+          sunrise: daily.sunrise?.[0],
+          sunset: daily.sunset?.[0],
+        },
+      };
+    } finally { clearTimeout(t); }
   },
 
   '/api/notion-todos': async () => {
@@ -402,7 +594,7 @@ const ROUTES = {
       const scheduled = props.Scheduled?.date?.start || null;
       const aiGen = props['AI-generated']?.checkbox || false;
       const reviewer = props.Reviewer?.select?.name || null;
-      const url = props.URL?.url || null;
+      const url = props['userDefined:URL']?.url || props.URL?.url || null;
       const titleProp = props.Title?.title || [];
       const title = titleProp.map((t) => t.plain_text).join('') || 'Untitled';
       return {
@@ -458,11 +650,13 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const pathname = url.pathname;
 
-  // POST /api/content-pipeline/move — update a content page's Stage property
+  // POST /api/content-pipeline/move — update a content page's Stage property.
+  // Optional: { reason, fromStage, title, type, tags } → logged to content-preferences.jsonl
+  // when transitioning Ideas backlog → Draft (promotion signal).
   if (pathname === '/api/content-pipeline/move' && req.method === 'POST') {
     try {
       const body = await readBody(req);
-      const { pageId, stage } = JSON.parse(body || '{}');
+      const { pageId, stage, reason, fromStage, title, type, tags } = JSON.parse(body || '{}');
       if (!pageId || !stage) return json(res, 400, { error: 'pageId and stage required' });
       if (!CONTENT_STAGES.includes(stage)) return json(res, 400, { error: 'invalid stage' });
       const r = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
@@ -476,7 +670,149 @@ const server = createServer(async (req, res) => {
       });
       const data = await r.json();
       if (!r.ok) return json(res, 500, { error: data.message || `notion ${r.status}` });
+      if (fromStage === 'Ideas backlog' && stage === 'Draft' && reason && reason.trim()) {
+        await logContentPreference({ action: 'promote', pageId, title, type, tags, reason: reason.trim() });
+      }
       return json(res, 200, { ok: true, pageId, stage });
+    } catch (err) {
+      return json(res, 500, { error: String(err.message || err) });
+    }
+  }
+
+  // POST /api/content-pipeline/retrieve — manual content feed retriever.
+  // Body: { prompt? } — if prompt provided, articles are token-scored against it;
+  // else sorted by publishedAt desc. Top 3 are created as Notion pages in Ideas backlog.
+  if (pathname === '/api/content-pipeline/retrieve' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { prompt } = JSON.parse(body || '{}');
+      const trimmedPrompt = (prompt || '').trim();
+      let articles;
+      try { articles = await fetchContentFeed(50); }
+      catch (err) { return json(res, 502, { error: `feed: ${err.message || err}` }); }
+      if (!articles.length) return json(res, 200, { ok: true, created: [], note: 'empty feed' });
+
+      let existing;
+      try { existing = await fetchExistingContentDedup(); }
+      catch (err) { return json(res, 500, { error: `dedup: ${err.message || err}` }); }
+
+      const isDuplicate = (art) => {
+        const u = (art.originalUrl || '').toLowerCase().trim();
+        if (u && existing.urls.has(u)) return true;
+        const t = (art.title || '').trim().toLowerCase();
+        if (t && existing.titles.has(t)) return true;
+        return false;
+      };
+      const fresh = articles.filter((a) => !isDuplicate(a));
+      const skippedDup = articles.length - fresh.length;
+      if (!fresh.length) return json(res, 200, { ok: true, created: [], note: `all ${articles.length} feed articles already in Content DB`, skippedDup });
+
+      let ranked;
+      if (trimmedPrompt) {
+        const tokens = expandPromptTokens(tokenize(trimmedPrompt));
+        ranked = fresh
+          .map((a) => ({ a, score: scoreArticle(a, tokens) }))
+          .filter((x) => x.score > 0)
+          .sort((x, y) => y.score - x.score || new Date(y.a.publishedAt) - new Date(x.a.publishedAt))
+          .map((x) => x.a);
+        if (!ranked.length) return json(res, 200, { ok: true, created: [], note: 'no new articles matching the prompt', skippedDup });
+      } else {
+        ranked = [...fresh].sort((x, y) => new Date(y.publishedAt) - new Date(x.publishedAt));
+      }
+
+      const top = [];
+      const batchUrls = new Set();
+      const batchTitles = new Set();
+      for (const art of ranked) {
+        if (top.length >= 3) break;
+        const u = (art.originalUrl || '').toLowerCase().trim();
+        const t = (art.title || '').trim().toLowerCase();
+        if (u && batchUrls.has(u)) continue;
+        if (t && batchTitles.has(t)) continue;
+        top.push(art);
+        if (u) batchUrls.add(u);
+        if (t) batchTitles.add(t);
+      }
+
+      const created = [];
+      for (const art of top) {
+        try { created.push(await createContentPageFromArticle(art, trimmedPrompt || null)); }
+        catch (err) { created.push({ error: String(err.message || err), title: art.title }); }
+      }
+      return json(res, 200, { ok: true, created, prompt: trimmedPrompt || null, totalCandidates: articles.length, skippedDup });
+    } catch (err) {
+      return json(res, 500, { error: String(err.message || err) });
+    }
+  }
+
+  // POST /api/content-pipeline/archive — soft-delete a content page in Notion.
+  // Body: { pageId, reason, title?, type?, tags? }. Reason is required and logged to
+  // content-preferences.jsonl so future feed selection can learn what to skip.
+  if (pathname === '/api/content-pipeline/archive' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { pageId, reason, title, type, tags } = JSON.parse(body || '{}');
+      if (!pageId) return json(res, 400, { error: 'pageId required' });
+      if (!reason || !reason.trim()) return json(res, 400, { error: 'reason required' });
+      const r = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${NOTION_TOKEN}`,
+          'notion-version': '2022-06-28',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ archived: true }),
+      });
+      const data = await r.json();
+      if (!r.ok) return json(res, 500, { error: data.message || `notion ${r.status}` });
+      await logContentPreference({ action: 'archive', pageId, title, type, tags, reason: reason.trim() });
+      return json(res, 200, { ok: true, pageId });
+    } catch (err) {
+      return json(res, 500, { error: String(err.message || err) });
+    }
+  }
+
+  // POST /api/refresh-brief — spawn a headless `claude -p` session that runs the morning
+  // brief prompt (refreshes cache + sends Telegram). Fire-and-forget: returns 202 immediately.
+  if (pathname === '/api/refresh-brief' && req.method === 'POST') {
+    try {
+      const { spawn } = await import('node:child_process');
+      const { existsSync } = await import('node:fs');
+      const candidates = [
+        join(HOME, '.local', 'bin', 'claude'),
+        '/opt/homebrew/bin/claude',
+        '/usr/local/bin/claude',
+      ];
+      const claudeBin = candidates.find((p) => existsSync(p)) || 'claude';
+      const extendedPath = [
+        join(HOME, '.local', 'bin'),
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/local/bin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin',
+        process.env.PATH || '',
+      ].filter(Boolean).join(':');
+
+      const prompt = [
+        'Regenerate the morning briefing on-demand, as if it were 07:28.',
+        '1) Open tasks from Sunsama (primary) and Notion To-dos (overdue only).',
+        '2) Today\'s events from both Google Calendars (flag conflicts).',
+        '3) Yesterday\'s meeting recap from Granola (action items, decisions).',
+        'Also write dashboard cache files to ~/mission-control/dashboard/cache/ (calendar.json, gmail.json, granola.json, sunsama.json).',
+        'Send everything on Telegram (text + voice OGG as per briefing rules).',
+        'Note: this is a manual regeneration triggered by the dashboard Refresh button.',
+      ].join(' ');
+      const child = spawn(claudeBin, ['-p', '--dangerously-skip-permissions', prompt], {
+        detached: true,
+        stdio: 'ignore',
+        cwd: join(HOME, 'mission-control'),
+        env: { ...process.env, HOME, PATH: extendedPath },
+      });
+      child.unref();
+      return json(res, 202, { ok: true, message: 'brief regeneration spawned', pid: child.pid, bin: claudeBin });
     } catch (err) {
       return json(res, 500, { error: String(err.message || err) });
     }
