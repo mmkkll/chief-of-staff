@@ -251,21 +251,21 @@ const ROUTES = {
 
   '/api/cron-health': async () => {
     // Read ~/.claude/scheduled_tasks.json if it exists (durable cron),
-    // and launchctl list entries in the com.mirko.* namespace
+    // and launchctl list entries in the com.missioncontrol.* namespace
     let durable = null;
     try {
       const raw = await readFile(join(HOME, '.claude', 'scheduled_tasks.json'), 'utf8');
       durable = JSON.parse(raw);
     } catch {}
     const launchd = await shell('launchctl', ['list']);
-    const mirkoAgents = (launchd.stdout || '')
+    const mcAgents = (launchd.stdout || '')
       .split('\n')
-      .filter((l) => l.includes('com.mirko.') || l.includes('com.claude.missioncontrol'))
+      .filter((l) => l.includes('com.missioncontrol.') || l.includes('com.claude.missioncontrol'))
       .map((l) => {
         const [pid, exit, label] = l.trim().split(/\s+/);
         return { pid: pid === '-' ? null : Number(pid), lastExit: Number(exit) || 0, label };
       });
-    return { durable, launchd: mirkoAgents };
+    return { durable, launchd: mcAgents };
   },
 
   '/api/notion-todos': async () => {
@@ -312,7 +312,7 @@ const ROUTES = {
     // 1. LaunchAgents from launchctl
     const launchd = await shell('launchctl', ['list']);
     const agentLines = (launchd.stdout || '').split('\n')
-      .filter((l) => l.includes('com.mirko.') || l.includes('com.claude.missioncontrol') || l.includes('com.n8n.'))
+      .filter((l) => l.includes('com.missioncontrol.') || l.includes('com.claude.missioncontrol') || l.includes('com.n8n.'))
       .map((l) => {
         const [pid, exit, label] = l.trim().split(/\s+/);
         return { pid: pid === '-' ? null : Number(pid), lastExit: Number(exit) || 0, label };
@@ -359,11 +359,11 @@ const ROUTES = {
 
     // 4. Local scripts in mission-control/scripts/
     const SCRIPT_META = {
-      'dashboard-launch.sh':       'Avvia dashboard + Chrome app mode',
-      'sunsama-refresh-token.mjs': 'Refresh session token Sunsama (Playwright headless)',
-      'hotel-scraper-server.mjs':  'HTTP server porta 3847 (Google Hotels + iCloud)',
-      'google-hotels-scraper.mjs': 'Scraper Playwright Google Hotels (CLI)',
-      'icloud-mail-search.mjs':    'Ricerca IMAP iCloud standalone (CLI)',
+      'dashboard-launch.sh':       'Launch dashboard + Chrome app mode',
+      'sunsama-refresh-token.mjs': 'Refresh Sunsama session token (Playwright headless)',
+      'hotel-scraper-server.mjs':  'HTTP server port 3847 (Google Hotels + iCloud)',
+      'google-hotels-scraper.mjs': 'Google Hotels Playwright scraper (CLI)',
+      'icloud-mail-search.mjs':    'iCloud IMAP search (CLI)',
     };
     let scriptFiles = [];
     try {
@@ -376,10 +376,10 @@ const ROUTES = {
 
     // 5. Cron schedule (Mission Control session crons — defined in mission-control.md)
     const cronJobs = [
-      { name: 'Briefing mattutino',  cron: '28 7 * * *',     desc: 'Notion to-dos + Calendar + Gmail + Granola → Telegram',    when: 'Daily 07:28' },
-      { name: 'Email monitor',       cron: '7 */2 * * *',    desc: 'Unread email scan, priorità label-based',                  when: 'Every 2h :07' },
-      { name: 'Email reminder',      cron: '57 16 * * 1-5',  desc: 'Email importanti non risposte da 48h+',                    when: 'Mon-Fri 16:57' },
-      { name: 'Travel organizer',    cron: '37 */2 * * *',   desc: 'Conferme prenotazione → Notion Travel pipeline',           when: 'Every 2h :37' },
+      { name: 'Morning briefing',    cron: '28 7 * * *',     desc: 'Tasks + Calendar + Gmail + Meetings → Telegram',          when: 'Daily 07:28' },
+      { name: 'Email monitor',       cron: '7 */2 * * *',    desc: 'Unread email scan, label-based priority',                  when: 'Every 2h :07' },
+      { name: 'Email reminder',      cron: '57 16 * * 1-5',  desc: 'Important emails unanswered for 48h+',                     when: 'Mon-Fri 16:57' },
+      { name: 'Travel organizer',    cron: '37 */2 * * *',   desc: 'Booking confirmations → Notion Travel pipeline',           when: 'Every 2h :37' },
       { name: 'Content feed daily',  cron: '0 17 * * *',     desc: 'WebSearch bucket diversification → 3 ideas in Content DB',  when: 'Daily 17:00' },
     ];
 

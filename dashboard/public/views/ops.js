@@ -83,7 +83,7 @@ async function renderCalendar(container) {
       <div class="card p-10 text-center enter">
         <div class="h-14 w-14 nm-icon-lg flex items-center justify-center mx-auto mb-4">${icon('calendar', 22)}</div>
         <div class="label mb-2">Calendar cache empty</div>
-        <p class="text-[12px] text-ink-2 max-w-sm mx-auto">Gli eventi di Google Calendar sono scritti dal cron briefing mattutino in <code class="kbd">dashboard/cache/calendar.json</code>. Il prossimo briefing è alle 07:28.</p>
+        <p class="text-[12px] text-ink-2 max-w-sm mx-auto">Google Calendar events are written by the morning briefing cron into <code class="kbd">dashboard/cache/calendar.json</code>. The next briefing fires at 07:28.</p>
       </div>
     `;
     return;

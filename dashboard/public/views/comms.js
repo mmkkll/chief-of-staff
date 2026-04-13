@@ -44,7 +44,7 @@ export default async function comms(root) {
     ` : `
       <div class="card p-6 enter">
         ${cardHeader('Granola — today', 'radio', 'no cache')}
-        <p class="text-[12px] text-ink-2">Granola è un'app macOS senza API pubblica. Il briefing mattutino userà l'MCP <code class="kbd">query_granola_meetings</code> per popolare <code class="kbd">cache/granola.json</code>.</p>
+        <p class="text-[12px] text-ink-2">Granola is a macOS app with no public API. The morning briefing cron uses the <code class="kbd">query_granola_meetings</code> MCP tool to populate <code class="kbd">cache/granola.json</code>.</p>
       </div>
     `;
 
