@@ -28,7 +28,9 @@ When starting a new session (or when I say "restart/launch Mission Control"):
 - Always check for conflicts before creating events
 
 ## Tasks & Notes
-- Tasks go in the Notion database "To-dos"
+- **Sunsama is the primary task manager**. Create new tasks on Sunsama (`create-task`), NOT on Notion To-dos. The morning briefing reads from Sunsama (`get-tasks-by-day`). **Caveat**: `dueDate` and `snoozeUntil` require full ISO datetime format (e.g. `2026-04-13T23:59:00.000Z`), not date-only strings.
+- **Sunsama MCP**: `robertn702/mcp-sunsama`, auth via session token in `~/mission-control/.secrets/sunsama.env`. 24 tools: create/read/update/complete/delete/snooze/backlog/subtasks/streams. Auto-refresh token every 20 days via LaunchAgent (see `scripts/sunsama-refresh-token.mjs`).
+- Notion "To-dos" remains as legacy archive — show in briefing only overdue/urgent tasks not yet migrated to Sunsama.
 - Notes go in "Quick Notes"
 
 ## Notion Integration
@@ -177,6 +179,24 @@ When asked about fuel prices, cheapest gas station, or EV charging stations:
 - `POST /webhook/travel-agent` — multi-model research
 - `POST /webhook/hotel-prices` — real hotel prices (requires tools server)
 - `POST /webhook/icloud-search` — IMAP email search (requires tools server)
+
+## Voice (ElevenLabs TTS)
+Integration via `scripts/elevenlabs-tts.mjs` (key in `.secrets/elevenlabs.env`, model `eleven_multilingual_v2`, default voice George `JBFqnCBsd6RMkjVDRZzb`, output MP3 or OGG Opus mono 48kHz via ffmpeg).
+
+**Automatic triggers** — always respect the same-channel rule (Telegram→Telegram, CLI→CLI):
+1. **"Reply with voice"** (or similar) in a message → generate voice with ElevenLabs and deliver on the same channel:
+   - Message from **CLI** → `elevenlabs-tts.mjs --play` (local playback via afplay), text in the CLI reply as usual. **Do NOT send on Telegram.**
+   - Message from **Telegram** → `elevenlabs-tts.mjs --ogg --out /tmp/mc-reply-<ts>.ogg`, Telegram reply with the OGG file in `files`.
+2. **Inbound Telegram voice message** (attachment_kind="voice") → user is driving/running, reply with voice on Telegram. Flow: `download_attachment` → whisper → text response (keep it short) → `--ogg` → Telegram reply with OGG file.
+3. **Morning briefing** → always generate voice of an abridged version (800-1200 chars) and attach it to the Telegram reply as OGG voice note. Additionally: run `scripts/mac-presence.sh` — if it returns `present` (idle <10min, no screensaver) also play locally via `afplay` (flag `--play`). If `absent`, Telegram only.
+
+**Base command**:
+```bash
+node ~/mission-control/scripts/elevenlabs-tts.mjs --ogg --out /tmp/mc-reply-<ts>.ogg "text to speak"
+```
+Add `--play` for local playback. Omit `--ogg` for MP3 output.
+
+**Telegram voice note limit**: the bot sends `.ogg` as "document" not as native voice (Telegram plugin limitation) — the user still sees tap-to-play. Long text → trim to max ~2000 chars to avoid ElevenLabs overflow.
 
 ## General Rules
 - Full URLs, never shortened

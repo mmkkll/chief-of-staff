@@ -68,6 +68,7 @@ Notion: Inspirations → Planning → Ready to Travel
 | [Google Calendar](https://calendar.google.com/) | Event management, conflict detection |
 | [Gmail](https://mail.google.com/) | Email monitoring, draft creation |
 | [Granola](https://www.granola.so/) | Meeting notes, transcripts, action items |
+| [Sunsama](https://sunsama.com/) | Primary task manager (replaces Notion To-dos) |
 | [ElevenLabs](https://elevenlabs.io/) | Text-to-speech for voice notes and briefings |
 | [n8n](https://n8n.io/) | Workflow automation, multi-model AI queries |
 | [Playwright](https://playwright.dev/) | Browser automation for price scraping |
@@ -87,6 +88,7 @@ Some features require API keys. Store them in `~/.secrets/` (gitignored).
 | ElevenLabs | Optional | Voice briefings, voice replies | [elevenlabs.io/api](https://elevenlabs.io/) — free tier available |
 | Open Charge Map | Optional | EV charging stations | [openchargemap.org/site/develop/api](https://openchargemap.org/site/develop/api) — free |
 | Granola | Optional | Meeting recap in briefing | Claude.ai MCP connector |
+| Sunsama | Optional | Task manager (replaces Notion To-dos) | [robertn702/mcp-sunsama](https://github.com/robertn702/mcp-sunsama) — session token in `.secrets/sunsama.env` |
 | n8n (self-hosted) | Optional | Multi-model travel research | [n8n.io](https://n8n.io/) — runs locally, no key needed |
 
 ## Quick Start
@@ -127,6 +129,9 @@ Claude reads your `CLAUDE.md` on startup, configures all cron jobs automatically
 │   ├── icloud-mail-search.mjs       # IMAP email search
 │   ├── elevenlabs-tts.mjs           # ElevenLabs TTS (MP3/OGG output, --play for local)
 │   ├── mac-presence.sh              # Detect if user is at the Mac (idle time check)
+│   ├── sunsama-refresh-token.mjs    # Sunsama session token auto-refresh (Playwright)
+│   ├── hotel-prices-workflow.json   # n8n workflow import for hotel price webhook
+│   ├── package.json                 # npm dependencies (imapflow, playwright)
 │   └── dashboard-launch.sh          # Dashboard launcher (open/start/stop)
 ├── dashboard/
 │   ├── server.mjs               # Vanilla Node HTTP server (port 3848)
