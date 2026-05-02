@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] — 2026-05-02
+
+### Fixed
+- **`scripts/tg-send.sh` reply-flag silent payload bug** — the script previously accepted only `--reply-to <id>`. Calling it with the more natural `--reply <id>` fell through the `case` statement into `*) break`, leaving `--reply` as the first positional argument, which was then sent as the message body (the literal text `--reply` arrived in the chat as a quote-reply to the trigger message). Caught in production while replying to a Telegram inbound. Two-part fix:
+  1. `--reply` is now a recognised alias of `--reply-to`.
+  2. Any unknown `--*` flag now exits with `ERR: unknown flag …` instead of being forwarded as text. This catches future typos (e.g. `--repy`, `--chatid`) before they reach the Bot API.
+- Header usage examples in the script updated to show `--reply` first (the canonical form) with `--reply-to` as documented alias.
+
 ## [1.3.0] — 2026-05-02
 
 ### Added — WhatsApp async automation

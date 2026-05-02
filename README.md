@@ -1,6 +1,6 @@
 # Chief of Staff — AI Executive Assistant with Claude Code
 
-> Current version: **1.3.0** — see [CHANGELOG.md](CHANGELOG.md) for the full release history.
+> Current version: **1.3.1** — see [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 Build your own autonomous executive assistant that manages your email, calendar, tasks, travel, and more — all running locally on your machine, communicating via Telegram.
 

@@ -13,7 +13,8 @@
 #   echo "text" | tg-send.sh
 #   tg-send.sh --chat 123456789 "text"
 #   tg-send.sh --html "<b>bold</b>"
-#   tg-send.sh --reply-to 123 "thread reply"
+#   tg-send.sh --reply 123 "thread reply"
+#   tg-send.sh --reply-to 123 "thread reply"   # alias of --reply
 TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 CHAT="${TELEGRAM_CHAT_ID:-}"
 MODE=""
@@ -23,7 +24,8 @@ while [[ $# -gt 0 ]]; do
     --chat) CHAT="$2"; shift 2;;
     --html) MODE="HTML"; shift;;
     --markdown) MODE="MarkdownV2"; shift;;
-    --reply-to) REPLY="$2"; shift 2;;
+    --reply-to|--reply) REPLY="$2"; shift 2;;
+    --*) echo "ERR: unknown flag $1. Valid: --chat <id> --html --markdown --reply <msg_id> [text]" >&2; exit 2;;
     *) break;;
   esac
 done
