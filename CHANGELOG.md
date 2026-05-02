@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-05-02
+
+### Added — WhatsApp async automation
+- **WhatsApp Baileys server** (`services/whatsapp/server.mjs`) — local HTTP service on port 3850 (configurable via `WA_PORT`) that uses [`@whiskeysockets/baileys`](https://github.com/WhiskeySockets/Baileys) to bridge your personal WhatsApp number into the framework. Endpoints: `/health`, `/contacts`, `/resolve?name=`, `POST /send`, `/unread`. Persists session credentials in `services/whatsapp/auth/` (gitignored). Inbound DMs append to `.state/wa-inbound-log.jsonl`.
+- **WhatsApp scheduler** (`scripts/wa-scheduler.mjs`) — drains `.state/wa-queue.json` every 60s, sends jobs whose `scheduled_at <= now` via the local Baileys server, moves them to `.state/wa-history.json`, notifies Telegram on success/error.
+- **WhatsApp enqueue helper** (`scripts/wa-enqueue.sh`) — append a send job to the queue: `wa-enqueue.sh --to "+39..." --name "Marco" --at "2026-05-03T09:00:00Z" --text "..."`.
+- **WhatsApp daily digest** (`scripts/wa-digest.mjs`) — fires daily 18:30, parses `.state/wa-inbound-log.jsonl`, groups by contact, filters DMs that look important (question marks + IT/EN trigger keywords), sends Telegram recap. Silent if 0 notable.
+- **3 LaunchAgent templates** in `launchagents-template/` (whatsapp-server with KeepAlive, wa-scheduler every 60s, wa-digest at 18:30).
+- **Dashboard endpoint** `/api/whatsapp-status` returns server health + pending/sent/error counts + recent jobs (queue + history).
+- **Comms widget** in the dashboard now shows a "WhatsApp — scheduler & inbound" card with connection status, pending list, recent sent, errors, contacts count.
+- **`docs/guide-whatsapp.md`** — full setup walkthrough (pairing, LaunchAgents, env vars, recovery procedures, privacy notes).
+
+### Added — Telegram channel hardening
+- **`scripts/channels-watchdog.sh`** — every-N-minutes watchdog that detects three Telegram failure modes:
+  1. `claude --channels` process missing → kickstart LaunchAgent
+  2. `bun` MCP child missing → kickstart
+  3. `bun` alive but 0 TCP connections to Telegram (zombie polling) → kickstart
+  Also triggers a preventive restart after 72h uptime to dodge multi-day REPL stalls. Uses `getUpdates offset=-100` to peek + journal pending updates before restart so missed messages aren't lost.
+- **`scripts/channels-watchdog-digest.sh`** — recap LaunchAgent (e.g. 4×/day at 08/12/16/20) that counts restart events from the watchdog log over the last 4h. Telegram notification only if restarts > 0 (silent when stable).
+- **`scripts/start-claude-channels-fifo.sh`** — wrapper script that launches `claude --channels` with `tail -f FIFO | script -q` to keep stdin open and provide a PTY (without these tricks claude detects no TTY and falls into print mode, dropping channel notifications).
+- **`scripts/mc-startup-notify.sh`** — boot-time Telegram notification with health summary (uptime, cache age, tools/n8n/dashboard ports, channels session PID, peeked Telegram queue snapshot).
+- **`docs/guide-telegram-channel.md`** — operational reference: 3 failure modes with detection + fix, why **NOT** to use `--plugin-dir` (silently breaks channel notifications), why FIFO+script PTY is required, when to use `tg-send.sh` vs the MCP plugin.
+
+### Added — helpers & patterns
+- **`scripts/tg-send.sh`** — outgoing Telegram via Bot API curl, drop-in fallback when the MCP plugin disconnects. Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from the environment. Includes a guardrail that refuses to send if the text looks like a bare chat_id (8-12 digits only) — catches a real-world arg-swap bug where headless agents accidentally sent the chat_id itself as the message body.
+- **`scripts/imagine.py`** — editorial illustration generator (axonometric Wired/MIT-Tech-Review style) from text or article URL. Distillation via Gemini 2.5-flash-lite, render via the n8n image-gen webhook (`/webhook/genera-immagine`). Outputs JPEG, optional `--telegram` send or `--open` Preview. Credentials via env vars (`GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`).
+- **`scripts/cron-wrapper-template.sh`** — generic pattern for headless `claude -p` cron wrappers (LaunchAgent fires bash → bash invokes `claude -p` with a prompt referencing a section of your config markdown). Documented why headless is preferred over the always-on channels session for scheduled jobs.
+
+### Fixed
+- **`scripts/icloud-mail-search.mjs` ImapFlow OR+SINCE bug** — when both `--query "kw1,kw2,..."` and `--since "YYYY-MM-DD"` were specified, the criteria was constructed as `{and: [{or: [...]}, {since: ...}]}` which silently returned 0 matches in ImapFlow despite the keywords being present in subject. Fixed to use top-level flat `{or: [...], since: ...}` (ImapFlow AND-s top-level keys by default). Same change applied to the `from + or + since` branch.
+
+### Notes
+- All new scripts read credentials and paths from environment variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `PROJECT_ROOT`, `LAUNCHD_LABEL`, etc.) so they can be dropped into any project root.
+- WhatsApp via Baileys is technically a ToS violation — for low-volume personal use the ban risk is low but non-zero. The repo guide is explicit about this and recommends NOT using it for outreach automation. Not for cold email replacement.
+- The Telegram channel architecture uses long-polling (`getUpdates`), NOT webhooks, so the typical 60s webhook-response timeout does not apply. Routines that take 30-90s (multi-LLM travel research) work fine.
+
 ## [1.2.0] — 2026-04-11
 
 ### Added

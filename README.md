@@ -1,6 +1,6 @@
 # Chief of Staff — AI Executive Assistant with Claude Code
 
-> Current version: **1.2.0** — see [CHANGELOG.md](CHANGELOG.md) for the full release history.
+> Current version: **1.3.0** — see [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 Build your own autonomous executive assistant that manages your email, calendar, tasks, travel, and more — all running locally on your machine, communicating via Telegram.
 
@@ -17,7 +17,8 @@ Chief of Staff turns [Claude Code](https://docs.anthropic.com/en/docs/claude-cod
 - Finds the **cheapest fuel stations** near any location using government open data
 - Finds the **nearest EV charging stations** with operator, connectors and power via Open Charge Map
 - Replies with **voice notes** via ElevenLabs TTS — voice briefings, voice replies to voice messages, presence-aware local playback
-- Communicates with you via **Telegram** in real-time (text, voice, photos, location pins)
+- Schedules **WhatsApp messages** with your personal number via Baileys — outbound queue, daily inbound digest, dashboard widget (see [WhatsApp guide](docs/guide-whatsapp.md))
+- Communicates with you via **Telegram** in real-time (text, voice, photos, location pins) — robust against bun-zombie failure modes via the [channels watchdog](docs/guide-telegram-channel.md)
 - Connects to **Notion**, **Google Calendar**, **Gmail**, **n8n**, and more via MCP
 
 Everything runs locally. Your data stays on your machine. No cloud services required beyond the APIs you choose to connect.
@@ -32,6 +33,8 @@ Everything runs locally. Your data stays on your machine. No cloud services requ
 | [Voice Notes](docs/guide-voice.md) | ElevenLabs TTS for briefings, voice replies, and inbound voice transcription via Whisper |
 | [Mission Control Dashboard](docs/guide-dashboard.md) | Local web UI — dark neumorphism, vanilla Node + static HTML, 8 pages, live + cache data |
 | [Fuel Price Finder & EV Charging](docs/guide-fuel-prices.md) | Real-time fuel prices from government open data + EV charging stations from Open Charge Map, Telegram location support |
+| [WhatsApp async automation](docs/guide-whatsapp.md) | Schedule outbound WhatsApp messages from your stack via Baileys; daily inbound digest of important DMs |
+| [Telegram channel ops](docs/guide-telegram-channel.md) | Operational notes for the persistent `claude --channels` session: failure modes, watchdog, FIFO/PTY pattern, why NOT to use `--plugin-dir` |
 
 ## Architecture
 
