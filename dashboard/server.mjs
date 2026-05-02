@@ -500,6 +500,35 @@ const ROUTES = {
   '/api/granola-cache': async () => readCache('granola'),
   '/api/sunsama-cache': async () => readCache('sunsama'),
 
+  // WhatsApp scheduler status — server health + queue + recent history.
+  // Reads .state/wa-queue.json + .state/wa-history.json + pings the local Baileys server (default port 3850).
+  '/api/whatsapp-status': async () => {
+    const stateDir = join(HOME, 'chief-of-staff', '.state');
+    const waPort = process.env.WA_PORT || 3850;
+    let queue = [];
+    let history = [];
+    try { queue = JSON.parse(await readFile(join(stateDir, 'wa-queue.json'), 'utf8')); } catch {}
+    try { history = JSON.parse(await readFile(join(stateDir, 'wa-history.json'), 'utf8')); } catch {}
+    let serverHealth = null;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 1500);
+      const r = await fetch(`http://localhost:${waPort}/health`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (r.ok) serverHealth = await r.json();
+    } catch {}
+    const pending = queue.filter(j => j.status === 'pending').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+    const sent = history.filter(j => j.status === 'sent').slice(0, 20);
+    const errors = history.filter(j => j.status === 'error').slice(0, 10);
+    return {
+      server: serverHealth || { status: 'down' },
+      pending,
+      sent,
+      errors,
+      counts: { pending: pending.length, sent_recent: sent.length, errors_recent: errors.length },
+    };
+  },
+
   '/api/agents': async () => {
     // 1. LaunchAgents from launchctl
     const launchd = await shell('launchctl', ['list']);

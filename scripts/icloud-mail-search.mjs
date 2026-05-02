@@ -107,15 +107,13 @@ async function searchICloudMail({ query, from, since, limit = 20, mailbox = 'INB
     if (searchCriteria.or.length === 0 && from) {
       criteria = since ? { from, since: new Date(since) } : { from };
     } else if (searchCriteria.or.length > 0 && from) {
-      criteria = {
-        and: [
-          { from },
-          { or: searchCriteria.or }
-        ]
-      };
-      if (since) criteria.and.push({ since: new Date(since) });
+      // ImapFlow top-level keys are AND'd; nested {and: [{or:...}, ...]} is buggy.
+      criteria = { from, or: searchCriteria.or };
+      if (since) criteria.since = new Date(since);
     } else if (searchCriteria.or.length > 0) {
-      criteria = since ? { and: [{ or: searchCriteria.or }, { since: new Date(since) }] } : { or: searchCriteria.or };
+      // Bug fix: previous {and: [{or:...}, {since:...}]} returned 0 results.
+      criteria = { or: searchCriteria.or };
+      if (since) criteria.since = new Date(since);
     } else {
       criteria = { since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
     }

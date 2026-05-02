@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template: WhatsApp Baileys server LaunchAgent.
+  Replace HOME paths and Label, then copy to ~/Library/LaunchAgents/.
+
+  Pre-req: pair the device once interactively (`cd services/whatsapp && node server.mjs`,
+  scan QR), then load this LaunchAgent for KeepAlive.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.whatsapp-server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/node</string>
+        <string>/Users/YOU/chief-of-staff/services/whatsapp/server.mjs</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/YOU/chief-of-staff/services/whatsapp</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/YOU</string>
+        <key>NODE_ENV</key>
+        <string>production</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>/Users/YOU/chief-of-staff/logs/whatsapp-server-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOU/chief-of-staff/logs/whatsapp-server-stderr.log</string>
+</dict>
+</plist>

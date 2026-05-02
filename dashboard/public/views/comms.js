@@ -12,9 +12,10 @@ export default async function comms(root) {
   `;
 
   async function render() {
-    const [gmail, granola] = await Promise.all([
+    const [gmail, granola, whatsapp] = await Promise.all([
       api('/api/gmail-cache').catch(() => null),
       api('/api/granola-cache').catch(() => null),
+      api('/api/whatsapp-status').catch(() => null),
     ]);
     const gmailCard = gmail?.ok ? `
       <div class="card p-6 enter">
@@ -48,11 +49,58 @@ export default async function comms(root) {
       </div>
     `;
 
-    document.getElementById('comms-grid').innerHTML = gmailCard + granolaCard;
+    const wa = whatsapp?.ok ? whatsapp.data : null;
+    const waConn = wa?.server?.wa_connection || 'down';
+    const waConnAccent = waConn === 'connected' ? 'ok' : (waConn === 'disconnected' ? 'warn' : '');
+    const waContacts = wa?.server?.contacts_count ?? 0;
+    const waQrPending = wa?.server?.qr_pending;
+    const pendingList = wa?.pending || [];
+    const sentList = wa?.sent || [];
+    const errorList = wa?.errors || [];
+    const waCard = `
+      <div class="card p-6 enter">
+        ${cardHeader('WhatsApp — scheduler & inbound', 'message-circle', `conn: ${waConn}`)}
+        <div class="grid grid-cols-3 gap-3 mb-4">
+          <div class="row"><span class="dot ${waConnAccent}"></span><div><div class="text-[10px] text-ink-2 uppercase tracking-wider">Server</div><div class="text-[12px] text-ink-0">${waConn}${waQrPending ? ' (scan QR)' : ''}</div></div></div>
+          <div class="row"><span class="dot ok"></span><div><div class="text-[10px] text-ink-2 uppercase tracking-wider">Pending</div><div class="text-[12px] text-ink-0">${pendingList.length}</div></div></div>
+          <div class="row"><span class="dot ${errorList.length ? 'warn' : ''}"></span><div><div class="text-[10px] text-ink-2 uppercase tracking-wider">Errors</div><div class="text-[12px] text-ink-0">${errorList.length}</div></div></div>
+        </div>
+        ${pendingList.length ? `
+          <div class="mb-3">
+            <div class="text-[10px] uppercase tracking-wider text-ink-2 mb-2">📅 Pending</div>
+            ${pendingList.slice(0, 8).map((j) => `
+              <div class="row"><span class="dot warn"></span><div class="flex-1 min-w-0"><div class="text-[12px] text-ink-0 truncate">${(j.name || j.to)} · ${new Date(j.scheduled_at).toLocaleString(undefined, {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="text-[10px] text-ink-2 truncate">${(j.text || '').slice(0, 80)}</div></div></div>
+            `).join('')}
+          </div>
+        ` : '<div class="text-[11px] text-ink-2 mb-3">No messages queued.</div>'}
+        ${sentList.length ? `
+          <div class="mb-3">
+            <div class="text-[10px] uppercase tracking-wider text-ink-2 mb-2">✅ Sent (recent)</div>
+            ${sentList.slice(0, 5).map((j) => `
+              <div class="row"><span class="dot ok"></span><div class="flex-1 min-w-0"><div class="text-[12px] text-ink-0 truncate">${(j.name || j.to)} · ${new Date(j.sent_at || j.scheduled_at).toLocaleString(undefined, {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="text-[10px] text-ink-2 truncate">${(j.text || '').slice(0, 80)}</div></div></div>
+            `).join('')}
+          </div>
+        ` : ''}
+        ${errorList.length ? `
+          <div>
+            <div class="text-[10px] uppercase tracking-wider text-ink-2 mb-2">❌ Errors</div>
+            ${errorList.slice(0, 5).map((j) => `
+              <div class="row"><span class="dot warn"></span><div class="flex-1 min-w-0"><div class="text-[12px] text-ink-0 truncate">${(j.name || j.to)}</div><div class="text-[10px] text-ink-2 truncate">${j.error || ''}</div></div></div>
+            `).join('')}
+          </div>
+        ` : ''}
+        <div class="mt-4 pt-3 border-t border-ink-3/10 text-[11px] text-ink-2">
+          <div>📊 Contacts: ${waContacts}</div>
+          <div>🔧 Server localhost:3850 · Scheduler 60s · Digest 18:30</div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('comms-grid').innerHTML = gmailCard + granolaCard + waCard;
     enterStagger('.enter', document.getElementById('comms-grid'));
   }
 
-  function refresh() { ['/api/gmail-cache', '/api/granola-cache'].forEach(invalidate); render(); }
+  function refresh() { ['/api/gmail-cache', '/api/granola-cache', '/api/whatsapp-status'].forEach(invalidate); render(); }
   await render();
   return { refresh, pollMs: 30000 };
 }
