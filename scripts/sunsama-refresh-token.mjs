@@ -15,13 +15,14 @@
  */
 
 import { chromium } from 'playwright';
-import { mkdir, rename, chmod, writeFile, appendFile } from 'node:fs/promises';
+import { mkdir, rename, chmod, writeFile, appendFile, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const HOME = homedir();
 const PROFILE_DIR = join(HOME, 'mission-control', '.sunsama-chrome-profile');
 const SECRET_FILE = join(HOME, 'mission-control', '.secrets', 'sunsama.env');
+const CLAUDE_JSON = join(HOME, '.claude.json');
 const LOG_DIR = join(HOME, 'mission-control', 'logs');
 const LOG_FILE = join(LOG_DIR, 'sunsama-refresh.log');
 const SUNSAMA_URL = 'https://app.sunsama.com';
@@ -47,6 +48,30 @@ async function writeSecret(token) {
   await writeFile(tmp, content);
   await chmod(tmp, 0o600);
   await rename(tmp, SECRET_FILE);
+}
+
+async function syncClaudeJson(token) {
+  const raw = await readFile(CLAUDE_JSON, 'utf8');
+  const data = JSON.parse(raw);
+  let patches = 0;
+  const visit = (obj) => {
+    if (obj && typeof obj === 'object') {
+      if (!Array.isArray(obj) && obj.sunsama && obj.sunsama.env && typeof obj.sunsama.env.SUNSAMA_SESSION_TOKEN === 'string') {
+        if (obj.sunsama.env.SUNSAMA_SESSION_TOKEN !== token) {
+          obj.sunsama.env.SUNSAMA_SESSION_TOKEN = token;
+          patches += 1;
+        }
+      }
+      for (const v of Array.isArray(obj) ? obj : Object.values(obj)) visit(v);
+    }
+  };
+  visit(data);
+  if (patches === 0) return 0;
+  const tmp = `${CLAUDE_JSON}.tmp.${process.pid}`;
+  await writeFile(tmp, JSON.stringify(data, null, 2));
+  await chmod(tmp, 0o600);
+  await rename(tmp, CLAUDE_JSON);
+  return patches;
 }
 
 async function findJwtCookie(context) {
@@ -119,6 +144,16 @@ async function main() {
       'INFO',
       `Refreshed token from cookie "${jwt.name}" (domain=${jwt.domain}); wrote ${SECRET_FILE}`
     );
+    try {
+      const patches = await syncClaudeJson(jwt.value);
+      if (patches > 0) {
+        await log('INFO', `Synced token into ${CLAUDE_JSON} (${patches} sunsama entries patched). Restart Claude Code session for MCP to pick it up.`);
+      } else {
+        await log('INFO', `${CLAUDE_JSON} already has matching token; no patch needed.`);
+      }
+    } catch (err) {
+      await log('WARN', `Could not sync ${CLAUDE_JSON}: ${err?.message || err}. MCP may keep using stale token until manual sync.`);
+    }
   } finally {
     await context.close();
   }

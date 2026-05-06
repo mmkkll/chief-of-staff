@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-05-06
+
+### Added
+- **`scripts/google-workspace-oauth.py`** — OAuth Installed App bootstrap for Google Workspace accounts driving [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp) in single-user mode. Pre-generates the OAuth `state`, then passes it through `run_local_server(state=...)` so the printed URL and the listener stay in sync (the canonical pattern of calling `flow.authorization_url()` and *then* `run_local_server()` regenerates state internally → MismatchingStateError on callback). Captures the actual auth URL by monkey-patching `webbrowser.get` (NOT `webbrowser.open`, which `run_local_server` does not call) so the URL can be piped to Telegram/Slack and clicked from any browser session on the same host. Saves credentials to `~/.google_workspace_mcp/credentials/<email>.json`. Recovery patterns for the most common failure modes (Test Users 403, MismatchingStateError, EADDRINUSE, refresh-token revocation after 7d Testing-status auto-revoke) documented in the docstring.
+
+### Fixed
+- **`scripts/sunsama-refresh-token.mjs` storage-split bug** — refresh script previously wrote only to `~/mission-control/.secrets/sunsama.env`, but the Sunsama MCP (`mcp-sunsama`, npx) reads `SUNSAMA_SESSION_TOKEN` from `~/.claude.json` (the env block of its `mcpServers` entry, passed to the subprocess at startup). Each automated refresh logged into Sunsama, created a *new* session, invalidated the previous session server-side, and updated only the env file — the JWT pinned in `~/.claude.json` (with an unexpired `exp`) returned 403 because Sunsama had killed the session it represented. Auto-refresh was actively breaking the working token. New `syncClaudeJson(token)` walks the JSON object, locates every `sunsama.env.SUNSAMA_SESSION_TOKEN` entry, and rewrites them atomically (chmod 600). A Claude Code session restart is still required for the npx subprocess to pick up the new env var (the subprocess reads it once at init).
+
 ## [1.3.1] — 2026-05-02
 
 ### Fixed
