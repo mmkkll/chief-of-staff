@@ -475,10 +475,13 @@ When I send a travel request, act as my personal Travel Agent:
 - Airline alliance: YOUR_ALLIANCE (e.g., Star Alliance, OneWorld, SkyTeam)
 - Flights under 4h: Economy. Over 4h: show Economy + Business with prices
 - Hotels: YOUR_PREFERRED_CHAIN (e.g., Marriott Bonvoy, Hilton Honors, IHG)
+- **Destination weather**: run `node ~/mission-control/scripts/weather-forecast.mjs --city "<destination>" --start <arrival> --end <departure>`. Open-Meteo backend (free, no API key). Tier auto-selected: daily forecast if dates ≤16d away, climatology fallback (10y mean) if further out. Always disclose "exact forecast at T-7d" when using climatology.
+- **Activity suggestions adapted to weather**: distribute outdoor activities (parks, walking tours, terraces) on clear mild days; reserve indoor activities (museums, galleries, exhibitions) for rainy days or extreme temperatures. Don't return a flat activity list — return a per-day plan that respects the forecast.
 - Include: flights with links, hotels with booking links, 2-3 restaurants
-  with Google Maps, practical notes, packing essentials
+  with Google Maps, weather-adapted activity plan, practical notes,
+  packing essentials based on the forecast
 - Save the FULL result to Notion in "Inspirations"
-- Send me a CONCISE summary on Telegram (max 3500 characters)
+- Send me a CONCISE summary on Telegram (max 3500 characters) including weather summary (temp range, % rainy days)
 
 ## Travel Pipeline (Notion)
 Structure: Travel > Inspirations > Planning > Ready to Travel
@@ -513,6 +516,45 @@ or standalone script. New emails also arrive on Gmail via forwarding.
 - `google-hotels-scraper.mjs` — Playwright Google Hotels scraper
 - `hotel-scraper-server.mjs` — tools server (port 3847)
 - `icloud-mail-search.mjs` — standalone iCloud IMAP search
+- `weather-forecast.mjs` — Open-Meteo wrapper for trip planning + pre-departure briefings (see [Weather forecasts](#weather-forecasts) below)
+
+### Weather Forecasts
+
+`scripts/weather-forecast.mjs` provides a single CLI for both trip ideation and pre-departure operations. Backed by [Open-Meteo](https://open-meteo.com) — free, no API key, geocoding included.
+
+**Usage:**
+
+```bash
+# By city name (geocoded automatically)
+node ~/mission-control/scripts/weather-forecast.mjs --city "Madrid" \
+  --start 2026-05-10 --end 2026-05-15
+
+# By coordinates
+node ~/mission-control/scripts/weather-forecast.mjs --lat 40.42 --lon -3.70 \
+  --start 2026-05-10 --end 2026-05-15
+
+# JSON output for downstream processing
+node ~/mission-control/scripts/weather-forecast.mjs --city "Tokyo" \
+  --start 2026-09-01 --end 2026-09-07 --json
+```
+
+**Tiered behavior:**
+
+| Date range from today | Tier | Source | Output fields |
+|-----------------------|------|--------|---------------|
+| ≤ 16 days             | Forecast | Open-Meteo Forecast API | max/min temp, precipitation mm, rain probability %, wind, weather code |
+| > 16 days             | Climatology | Historical Archive API (last 10 years) | max/min temp (10y mean), avg precipitation, % rainy days historically |
+
+The boundary at 16 days reflects Open-Meteo's reliable forecast horizon. Beyond that the script falls back to averages over the same calendar window across the last 10 years (years missing from the archive — typically the most recent 1-2 — are skipped, and the disclaimer reflects the actual sample size, e.g. "media 5 anni").
+
+**Where it fires automatically:**
+
+1. **Travel Agent (synchronous, on demand)** — when you ask Claude to plan a trip, it calls the script for the destination dates and distributes activities across days based on the forecast: outdoor on clear days, indoor (museums, galleries, exhibitions) on rainy or extreme-temperature days. Climatology is used silently if the trip is too far out and the disclaimer is included in the response.
+2. **Travel Organizer pre-departure checklist (T-48h cron)** — at 46-50h before departure the cron now calls the script for the full trip duration and emits day-by-day forecast, automatic alerts (rain >60%, wind >40 km/h, temp <5°C or >32°C, snow), itinerary tweak suggestions, and a packing list driven by the forecast.
+3. **Work-trip advance notice (T-7d)** — refreshes the forecast as the trip enters the reliable 16-day horizon, before the slide preparation reminder.
+4. **Morning briefing (when a trip is active or starts tomorrow)** — adds a "weather for the day" block with alerts and adjustment suggestions for the current day's plan.
+
+**Weather code labels** are localized to Italian by default (`sereno`, `coperto`, `pioggia`, etc.); the mapping is at the top of the script and can be swapped for another language without changing the API contract.
 
 ### OpenCLI (Browser Automation)
 [OpenCLI](https://github.com/jackwener/OpenCLI) reuses your Chrome sessions to automate web interactions.
@@ -619,12 +661,17 @@ and save them to Notion.
       - Check completeness: outbound transport? hotel? return transport?
       - Verify PNR/booking codes are present
       - Check for boarding passes in attachments
-      - Check destination weather (use WebSearch)
+      - Run `node ~/mission-control/scripts/weather-forecast.mjs --city "<destination>" --start <arrival> --end <departure>` (Open-Meteo, free, no key). Within 16 days of departure the script returns a reliable daily forecast.
+      - Generate alerts for: rain probability >60%, wind >40 km/h, temperatures <5°C or >32°C, snow probability.
+      - Suggest itinerary adjustments based on the forecast: move outdoor activities to clear days, propose indoor alternatives (museums, galleries, exhibitions) on rainy ones.
+      - Build a packing list driven by the forecast (waterproof jacket, umbrella, warm layers, sun hat, etc.).
       - Send to Telegram:
         ⏰ PRE-DEPARTURE CHECKLIST — [Destination] (departing in 48h)
         ✅ Present items
         ❌ MISSING items
-        🌤️ Weather forecast
+        🌤️ Day-by-day forecast + alerts
+        🎯 Suggested itinerary tweaks (indoor on rain, outdoor on sun)
+        🧳 Weather-driven packing essentials
 
         Then ask: "Should I move this trip to Ready to Travel?"
         Wait for confirmation before moving.

@@ -294,12 +294,19 @@ For each relevant email: who writes, what they want, recommended action.
 - For each meeting: title, attendees, key decisions, action items
 - If no meetings yesterday, skip this section
 
+4-bis. Weather for an active trip (when applicable):
+- Check whether a Notion travel page is currently active (Ready to Travel / business or work folder where today is between trip start and end), or has departure tomorrow.
+- If yes, run `node ~/mission-control/scripts/weather-forecast.mjs --city "<destination>" --start <today> --end <trip_end>` for a fresh forecast.
+- Surface alerts (rain >50% today, wind >40 km/h, temp <5°C or >32°C, snow) and propose a same-day adjustment to the plan (move outdoor activities to the afternoon if morning is wet, etc.) plus what to bring out the door (umbrella, warm layer, sun hat).
+- If no trip is active, omit the section.
+
 5. Send the briefing to Telegram (chat_id: YOUR_CHAT_ID) with format:
 ☀️ MORNING BRIEFING — [date]
 📅 TODAY'S AGENDA (events + conflicts)
 📋 OPEN TASKS (🔴 overdue, ⏰ urgent, 🔵 in progress, ⚪ not started)
 🎙️ YESTERDAY'S MEETINGS (title, action items, decisions — if any)
 📧 EMAILS TO HANDLE (summary + action)
+🌤️ WEATHER FOR YOUR TRIP (only if trip is active or starts tomorrow)
 Have a great day! 🚀
 
 ---

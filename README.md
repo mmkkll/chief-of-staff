@@ -1,6 +1,6 @@
 # Chief of Staff — AI Executive Assistant with Claude Code
 
-> Current version: **1.3.1** — see [CHANGELOG.md](CHANGELOG.md) for the full release history.
+> Current version: **1.5.0** — see [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 Build your own autonomous executive assistant that manages your email, calendar, tasks, travel, and more — all running locally on your machine, communicating via Telegram.
 
@@ -8,10 +8,16 @@ Build your own autonomous executive assistant that manages your email, calendar,
 
 Chief of Staff turns [Claude Code](https://docs.anthropic.com/en/docs/claude-code) into a full-featured Chief of Staff that:
 
-- Sends you a **daily morning briefing** (agenda, tasks, emails to handle)
+- Sends you a **daily morning briefing** (agenda, tasks, emails to handle, plus weather alerts and same-day itinerary tweaks when you're travelling)
 - **Monitors your email** every 2 hours and flags what needs attention
 - **Reminds you** of unanswered emails before end of day
-- Manages your **travel**: researches trips, tracks real hotel prices, organizes booking confirmations, and handles the full trip lifecycle on Notion
+- Manages your **travel** end-to-end with weather awareness:
+  - **On-demand Travel Agent** that distributes activities across days based on the destination forecast — outdoor (parks, walking tours, terraces) on clear days, indoor (museums, galleries, exhibitions) on rainy ones
+  - Real hotel-price scraping via Playwright + Google Hotels
+  - Automatic booking organization across multiple Google Workspace accounts (Gmail) plus iCloud and Aruba IMAP
+  - **48-hour pre-departure checklist** with day-by-day forecast, automatic alerts (rain, wind, extreme temperatures, snow), itinerary adjustment suggestions, and a packing list driven by the forecast
+  - **T-7d work-trip refresh** that re-runs the forecast as it enters Open-Meteo's reliable horizon
+  - Full trip lifecycle on Notion: `Inspirations → Planning → Ready to Travel → Past trips`
 - Runs a **daily content engine** that researches topics you care about via WebSearch and drops 3 diversified editorial ideas into a Notion kanban every day at 17:00
 - Shows you everything in a **Mission Control Dashboard** — a local web UI with dark neumorphism design that opens in Chromium on launch
 - Finds the **cheapest fuel stations** near any location using government open data
@@ -19,7 +25,18 @@ Chief of Staff turns [Claude Code](https://docs.anthropic.com/en/docs/claude-cod
 - Replies with **voice notes** via ElevenLabs TTS — voice briefings, voice replies to voice messages, presence-aware local playback
 - Schedules **WhatsApp messages** with your personal number via Baileys — outbound queue, daily inbound digest, dashboard widget (see [WhatsApp guide](docs/guide-whatsapp.md))
 - Communicates with you via **Telegram** in real-time (text, voice, photos, location pins) — robust against bun-zombie failure modes via the [channels watchdog](docs/guide-telegram-channel.md)
-- Connects to **Notion**, **Google Calendar**, **Gmail**, **n8n**, and more via MCP
+- Connects to **Notion**, **Google Calendar**, **Gmail** (multiple Google Workspace accounts via [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp), bootstrapped with the included [`google-workspace-oauth.py`](scripts/google-workspace-oauth.py) helper that handles the canonical `MismatchingStateError` pitfall), **n8n**, and more via MCP
+
+### Weather forecasts (no API key required)
+
+The travel-agent flows above use [`scripts/weather-forecast.mjs`](scripts/weather-forecast.mjs), backed by [Open-Meteo](https://open-meteo.com): free, no API key, geocoding included. The script auto-selects between two tiers based on the date range:
+
+| Date range from today | Tier | Source |
+|-----------------------|------|--------|
+| ≤ 16 days             | **Forecast** (daily max/min, precipitation mm + probability, wind, weather code) | Open-Meteo Forecast API |
+| > 16 days             | **Climatology** (max/min and rain over the same calendar window across the last 10 years) | Open-Meteo Historical Archive API |
+
+The boundary at 16 days is Open-Meteo's reliable forecast horizon. Beyond that the script returns historical means with a clear "exact forecast at T-7d" disclaimer so the agent never overstates certainty for trips planned far in advance. See the [Weather Forecasts section in the Travel guide](docs/guide-travel-system.md#weather-forecasts) for usage examples and integration points.
 
 Everything runs locally. Your data stays on your machine. No cloud services required beyond the APIs you choose to connect.
 
@@ -28,7 +45,7 @@ Everything runs locally. Your data stays on your machine. No cloud services requ
 | Guide | What You'll Build |
 |-------|------------------|
 | [Mission Control](docs/guide-mission-control.md) | The core system: 5 cron jobs, email monitoring, task management, Telegram integration |
-| [Travel Agent & Organizer](docs/guide-travel-system.md) | Multi-model travel research, hotel price scraping, automatic booking organization, trip lifecycle management |
+| [Travel Agent & Organizer](docs/guide-travel-system.md) | Multi-model travel research, hotel price scraping, automatic booking organization, **weather-aware activity planning + 48h forecast checklist** (Open-Meteo), trip lifecycle management |
 | [Content Engine](docs/guide-content-engine.md) | Daily content ideation: WebSearch → 3 diversified ideas → Notion kanban with drag-drop |
 | [Voice Notes](docs/guide-voice.md) | ElevenLabs TTS for briefings, voice replies, and inbound voice transcription via Whisper |
 | [Mission Control Dashboard](docs/guide-dashboard.md) | Local web UI — dark neumorphism, vanilla Node + static HTML, 8 pages, live + cache data |
@@ -69,8 +86,9 @@ Notion: Inspirations → Planning → Ready to Travel
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | AI agent runtime with MCP tool access |
 | [Telegram Bot](https://core.telegram.org/bots) | Two-way communication (text, voice, photos, location) |
 | [Notion](https://www.notion.so/) | Tasks, travel documents, knowledge base (via MCP: search, fetch, create, update, move pages, create databases) |
-| [Google Calendar](https://calendar.google.com/) | Event management, conflict detection |
-| [Gmail](https://mail.google.com/) | Email monitoring, draft creation |
+| [Google Calendar](https://calendar.google.com/) | Event management, conflict detection (multi-account via [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp)) |
+| [Gmail](https://mail.google.com/) | Email monitoring, draft creation (multi-account via [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp)) |
+| [Open-Meteo](https://open-meteo.com/) | Weather forecasts and climatology for Travel Agent / pre-departure briefings (free, no API key) |
 | [Granola](https://www.granola.so/) | Meeting notes, transcripts, action items |
 | [Sunsama](https://sunsama.com/) | Primary task manager (replaces Notion To-dos) |
 | [ElevenLabs](https://elevenlabs.io/) | Text-to-speech for voice notes and briefings |
@@ -88,7 +106,8 @@ Some features require API keys. Store them in `~/.secrets/` (gitignored).
 | Anthropic (Claude) | **Yes** | Core runtime | [console.anthropic.com](https://console.anthropic.com/) |
 | Telegram Bot | **Yes** | All notifications, voice notes | [@BotFather](https://t.me/BotFather) on Telegram |
 | Notion | **Yes** | Tasks, travel, content pipeline | [Notion Integrations](https://www.notion.so/my-integrations) — or use the claude.ai MCP connector |
-| Google (Calendar + Gmail) | **Yes** | Briefing, email monitor | Claude.ai MCP connectors (no manual key needed) |
+| Google (Calendar + Gmail) | **Yes** | Briefing, email monitor | Claude.ai MCP connector for a single account, or [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp) + [`scripts/google-workspace-oauth.py`](scripts/google-workspace-oauth.py) for multiple Workspace accounts |
+| Open-Meteo | No (no key) | Weather-aware Travel Agent + pre-departure forecast | Used directly by [`scripts/weather-forecast.mjs`](scripts/weather-forecast.mjs) — see [Travel guide](docs/guide-travel-system.md#weather-forecasts) |
 | ElevenLabs | Optional | Voice briefings, voice replies | [elevenlabs.io/api](https://elevenlabs.io/) — free tier available |
 | Open Charge Map | Optional | EV charging stations | [openchargemap.org/site/develop/api](https://openchargemap.org/site/develop/api) — free |
 | Granola | Optional | Meeting recap in briefing | Claude.ai MCP connector |
@@ -131,9 +150,11 @@ Claude reads your `CLAUDE.md` on startup, configures all cron jobs automatically
 │   ├── google-hotels-scraper.mjs    # Playwright hotel price scraper
 │   ├── hotel-scraper-server.mjs     # Tools HTTP server (port 3847)
 │   ├── icloud-mail-search.mjs       # IMAP email search
+│   ├── weather-forecast.mjs         # Open-Meteo forecast + climatology helper for Travel Agent
+│   ├── google-workspace-oauth.py    # OAuth bootstrap for taylorwilsdon Workspace MCP (state-sync, captures URL)
 │   ├── elevenlabs-tts.mjs           # ElevenLabs TTS (MP3/OGG output, --play for local)
 │   ├── mac-presence.sh              # Detect if user is at the Mac (idle time check)
-│   ├── sunsama-refresh-token.mjs    # Sunsama session token auto-refresh (Playwright)
+│   ├── sunsama-refresh-token.mjs    # Sunsama session token auto-refresh (Playwright + ~/.claude.json sync)
 │   ├── hotel-prices-workflow.json   # n8n workflow import for hotel price webhook
 │   ├── package.json                 # npm dependencies (imapflow, playwright)
 │   └── dashboard-launch.sh          # Dashboard launcher (open/start/stop)
