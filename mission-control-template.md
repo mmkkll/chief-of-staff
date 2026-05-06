@@ -162,7 +162,12 @@ Organize travel documents. Search for booking confirmations in email and save to
 6. Do NOT mark emails as read.
 
 7. PRE-DEPARTURE CHECKLIST (48h before) — For each trip in Planning:
-   If departure is 46-50 hours away: verify completeness, check weather, send checklist on Telegram.
+   If departure is 46-50 hours away:
+   - Verify completeness (outbound flight/train, hotel, return, boarding passes, PNR codes).
+   - Run `node ~/mission-control/scripts/weather-forecast.mjs --city "<destination>" --start <arrival> --end <departure>` for daily forecast (Open-Meteo, free, no key). Tier auto-selected: forecast if ≤16 days, climatology if longer.
+   - Generate alerts for rain >60%, wind >40 km/h, temperatures <5°C or >32°C, snow probability.
+   - Suggest itinerary tweaks based on forecast (move outdoor activities to clear days, indoor alternatives on rainy days) and packing essentials (waterproof, warm layers, etc.).
+   - Send checklist on Telegram including: completeness ✅/❌, day-by-day weather, suggested itinerary adjustments, weather-driven packing list.
 
 8. AUTO-MOVE ON DEPARTURE DAY — If departure is TODAY:
    Move to Ready to Travel (YOUR_READY_PAGE_ID) automatically.

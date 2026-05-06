@@ -83,9 +83,11 @@ When I send a travel request, act as my personal Travel Agent:
 - Airline alliance: YOUR_ALLIANCE
 - Flights under 4h: Economy. Over 4h: show Economy + Business with prices
 - Hotels: YOUR_PREFERRED_CHAIN
-- Include: flights with links, hotels with booking links, 2-3 restaurants with Google Maps, practical notes, packing essentials
+- **Destination weather**: run `node ~/mission-control/scripts/weather-forecast.mjs --city "<destination>" --start <arrival> --end <departure>` (Open-Meteo, free, no API key). If dates are >16 days from today the script falls back to climatology (10-year mean). Always note the disclaimer "exact forecast at T-7d".
+- **Activity suggestions adapted to weather**: outdoor (parks, walking tours, terraces) on sunny mild days; indoor (museums, galleries, exhibitions) when rain probability is high or temperatures extreme. Distribute activities across days rather than a flat list.
+- Include: flights with links, hotels with booking links, 2-3 restaurants with Google Maps, weather-adapted activity plan, practical notes, packing essentials based on the forecast
 - Save the FULL result to Notion in "Inspirations"
-- Send me a CONCISE summary on Telegram (max 3500 characters)
+- Send me a CONCISE summary on Telegram (max 3500 characters) with weather summary (temp range + % rainy days)
 
 ## Content Engine
 Daily content ideation pipeline that researches topics of interest via WebSearch and drops 3 diversified content ideas into a Notion kanban every day at 17:00.

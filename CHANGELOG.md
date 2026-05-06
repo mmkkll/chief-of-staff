@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-05-06
+
+### Added — Weather-aware Travel Agent
+- **`scripts/weather-forecast.mjs`** — Travel weather helper backed by [Open-Meteo](https://open-meteo.com) (free, no API key, geocoding included). Tiered behavior: daily forecast for date ranges within the 16-day reliable horizon, climatology fallback (10-year mean for the same calendar window) for trips planned further out. Handles geocoding from a free-text city name, returns max/min temperature, precipitation, rain probability, and weather codes mapped to Italian labels. CLI flags: `--city <name> | --lat <n> --lon <n>`, `--start YYYY-MM-DD`, `--end YYYY-MM-DD`, `--json`. Used by both the synchronous Travel Agent (trip ideation) and the Travel Organizer pre-departure checklist cron.
+- **Travel Agent — weather-driven activity suggestions**: when planning a new trip, fetch the forecast (or climatology) for the destination dates and distribute activities across days based on the conditions — outdoor on clear mild days, indoor (museums, galleries, exhibitions) on rainy or extreme-temperature days. CLAUDE.md template extended.
+- **Pre-departure checklist (48h cron) — weather block**: replaces the previous `WebSearch` weather lookup with a structured `weather-forecast.mjs` call. Generates day-by-day forecast, automatic alerts (rain >60%, wind >40 km/h, temp <5°C or >32°C, snow), itinerary tweak suggestions (move outdoor activities, propose indoor alternatives), and a weather-driven packing list. mission-control-template.md updated.
+- **T-7 days advance notice (work trips)** now refreshes the forecast as it enters the reliable 16-day horizon.
+
 ## [1.4.0] — 2026-05-06
 
 ### Added
