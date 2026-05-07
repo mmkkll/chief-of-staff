@@ -1,6 +1,6 @@
 # Chief of Staff — AI Executive Assistant with Claude Code
 
-> Current version: **1.5.0** — see [CHANGELOG.md](CHANGELOG.md) for the full release history.
+> Current version: **1.6.0** — see [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 Build your own autonomous executive assistant that manages your email, calendar, tasks, travel, and more — all running locally on your machine, communicating via Telegram.
 
@@ -25,6 +25,12 @@ Chief of Staff turns [Claude Code](https://docs.anthropic.com/en/docs/claude-cod
 - Replies with **voice notes** via ElevenLabs TTS — voice briefings, voice replies to voice messages, presence-aware local playback
 - Schedules **WhatsApp messages** with your personal number via Baileys — outbound queue, daily inbound digest, dashboard widget (see [WhatsApp guide](docs/guide-whatsapp.md))
 - Communicates with you via **Telegram** in real-time (text, voice, photos, location pins) — robust against bun-zombie failure modes via the [channels watchdog](docs/guide-telegram-channel.md)
+- Operates a dedicated **Assistant Mailbox** (a Gmail account it runs autonomously) for five use cases the assistant doesn't get from Telegram alone:
+  - *CC awareness* — you Cc the assistant on appointments and replies, and it silently keeps Sunsama / Notion / Calendar in sync without asking
+  - *Heavy materials inbound* — you forward documents, PDFs, and long texts that don't fit on Telegram, and it reads attachments and files them in the right Notion location
+  - *Email commands* — you send instructions by mail and the assistant always asks for Telegram confirmation before executing (never auto-runs even from allowlisted senders that pass SPF/DKIM)
+  - *Third-party auto-replies* — speaking invitations, bio/press-kit requests and the like get answered autonomously on a topic whitelist (signed as the assistant, with the user's primary email in `Cc:` for visibility); sensitive topics — advisory, M&A, legal — always require Telegram confirmation
+  - *Heavy materials outbound* — when the assistant needs to send you a long PDF or a multi-attachment report, or when you say "mail it to me", it sends from its own mailbox to your primary work address with subject pattern `[MC] <topic>`
 - Connects to **Notion**, **Google Calendar**, **Gmail** (multiple Google Workspace accounts via [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp), bootstrapped with the included [`google-workspace-oauth.py`](scripts/google-workspace-oauth.py) helper that handles the canonical `MismatchingStateError` pitfall), **n8n**, and more via MCP
 
 ### Weather forecasts (no API key required)
@@ -152,6 +158,9 @@ Claude reads your `CLAUDE.md` on startup, configures all cron jobs automatically
 │   ├── icloud-mail-search.mjs       # IMAP email search
 │   ├── weather-forecast.mjs         # Open-Meteo forecast + climatology helper for Travel Agent
 │   ├── google-workspace-oauth.py    # OAuth bootstrap for taylorwilsdon Workspace MCP (state-sync, captures URL)
+│   ├── add-mailbox-account.mjs      # Adds an extra IMAP alias to mailbox-mcp without rewriting existing aliases
+│   ├── cron-mc-mailbox.sh           # Assistant Mailbox cron (every 30min, 07:00-22:00)
+│   ├── cron-mc-mailbox-digest.sh    # Assistant Mailbox daily digest (21:00, silent if 0 activity)
 │   ├── elevenlabs-tts.mjs           # ElevenLabs TTS (MP3/OGG output, --play for local)
 │   ├── mac-presence.sh              # Detect if user is at the Mac (idle time check)
 │   ├── sunsama-refresh-token.mjs    # Sunsama session token auto-refresh (Playwright + ~/.claude.json sync)

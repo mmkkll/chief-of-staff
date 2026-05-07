@@ -223,6 +223,97 @@ Daily Content Feed. Research topics of interest via WebSearch, select 3 diversif
 
 ---
 
+## 6. Assistant Mailbox (every 30 min, 07:00–22:00)
+
+A dedicated email address that the assistant operates on its own. The user does *not* read it — it's the assistant's working mailbox. Three inbound use cases (from the user) and two outbound use cases (third parties / sending heavy material back to the user) are handled here.
+
+- **Cron**: every 30 minutes between 07:00 and 22:00 (waking hours)
+- **Wrapper**: `scripts/cron-mc-mailbox.sh`
+- **Daily digest**: `scripts/cron-mc-mailbox-digest.sh` at 21:00 — silent if all counters for the day are zero
+- **Account**: extra alias on jgalea/mailbox-mcp (e.g. `assistant`) — added with `scripts/add-mailbox-account.mjs <alias> <env_file>`
+- **Auth**: IMAP `imap.gmail.com:993` SSL + Gmail App Password (requires 2-Step Verification on the assistant account)
+
+### Sender allowlist (HARDCODED — owner)
+
+Commands (use case 3), CC awareness (use case 1), and direct material (use case 2) are trusted only from the user's verified addresses. Hardcode them in `mission-control.md`:
+
+- `you@your-primary-domain.com`
+- `you@your-personal.com`
+- `you@your-secondary.com`
+- (etc.)
+
+### Authentication-Results header verification (mandatory)
+
+For every email from an allowlisted sender, parse the Gmail-added `Authentication-Results` header:
+- `spf=pass` AND (`dkim=pass` OR `dmarc=pass`) → proceed
+- otherwise → silent reject + Telegram alert "⚠️ MC email auth-fail attempt from `<from>`"
+
+This catches sender spoofing — `From:` alone is trivial to forge.
+
+### Buckets (use cases 1–3, from the user)
+
+1. **CC mode** (assistant in `Cc:`, From in allowlist): silent — context update on Sunsama / Notion / Calendar based on content. Counter for digest only.
+2. **Direct material** (assistant in `To:`, no command intent): read attachments (PDF → pypdf, image → OCR), save to the appropriate Notion location (Travel / Notes / Quick Notes / business). Telegram only when attention is needed.
+3. **Direct command** (assistant in `To:`, command intent — subject starts with `CMD:` / `MC:` / imperative verb, OR body starts with `run`/`execute`/etc.): **always** Telegram confirmation with subject + body preview (200 chars). Wait for `ok` / `no`. Timeout 4h. Never auto-execute, even from allowlist + auth pass.
+
+### Auto-reply to third parties (use case 5)
+
+For email from senders NOT in the user's allowlist (third parties: organisers, prospects, press, etc.), classify the intent and use a topic whitelist:
+
+| Topic | Trigger | Action |
+|---|---|---|
+| Speaking invitation | "speaker / keynote / invite to speak" + a date | Auto-reply: thanks + brief questionnaire (date / venue / audience / format / fee / topic brief). Always include "I need to verify availability with `<owner>` and will confirm shortly." |
+| Bio + headshot | "press kit / bio / send a short biography" | Auto-reply with the standard bio from `templates/user-bio.md` (short + long version + headshot URL if present) |
+| Cold pitch / vendor | unsolicited service offer | Silent skip + spam counter (no reply) |
+
+**Topic gray zone** (Telegram confirmation before reply): quick podcast/press interview, workshop / masterclass requests, sensitive press questions.
+
+**Topic always Telegram confirmation** (never auto-reply): advisory / consulting, M&A or business deal, legal / contractual.
+
+**Auto-reply signature** (use case 5 only):
+
+```
+—
+<Assistant name>, AI assistant for <YOUR NAME>
+<assistant_email>
+(reply sent autonomously within a limited scope; <owner> is CC'd on sensitive topics)
+```
+
+**Reply language**: same language as the inbound message (detect via subject + body). Default fallback: English when ambiguous.
+
+**CC the user on auto-replies**: include the user's primary work email in `Cc:` for every autonomous reply. The user gets visibility without having to open the assistant mailbox.
+
+**Storage**: every sent reply is logged in Notion Quick Notes with tag `assistant-sent` (subject, recipient, full body, timestamp, thread link if available).
+
+### Outbound assistant → user (use case 6)
+
+When the user explicitly says "send it to me by email" / "mail it" — or when the payload is too big for Telegram (long PDF, multi-attachment report, file >10 MB) — the assistant uses the dedicated mailbox SMTP to email the user.
+
+- **Default recipient**: the user's primary work email
+- **Contextual override**: work documents → primary work email; personal / travel docs → personal email; iCloud-specific → iCloud email
+- **Subject pattern**: `[MC] <topic>` (so the user can filter easily)
+- **Body**: short context + 2–3 lines of recommended action; attachments via the send tool
+- **Storage**: log in Notion Quick Notes with tag `assistant-mc-outbound` (timestamp, subject, recipient, attachment size)
+
+### SMTP setup (for use cases 5 & 6)
+
+- **Server**: `smtp.gmail.com:587` STARTTLS
+- **Auth**: same App Password as IMAP
+- **Tool**: `mcp__mailbox__send_email` with the assistant alias, or a small Python `smtplib` wrapper if more control is needed
+
+### Setup checklist
+
+1. Create a dedicated Gmail account for the assistant (or use a Workspace alias).
+2. Enable 2-Step Verification on it (App Passwords are gated by 2FA).
+3. Generate an App Password — `https://myaccount.google.com/apppasswords` after 2FA is on. The setting is hidden until 2FA is enabled.
+4. Save credentials to `~/mission-control/.secrets/<alias>.env` (chmod 600), defining `GMAIL_<ALIAS>_EMAIL` and `GMAIL_<ALIAS>_APP_PASSWORD`.
+5. Run `node ~/mission-control/scripts/add-mailbox-account.mjs <alias> ~/mission-control/.secrets/<alias>.env` to register the account in mailbox MCP (preserves any existing aliases).
+6. Restart the channels session: `launchctl kickstart -k gui/$(id -u)/com.YOUR_USER.missioncontrol` so mailbox MCP reloads.
+7. Verify with `claude mcp list` that `mailbox` is connected and `mcp__mailbox__list_accounts` returns the new alias.
+8. Install the LaunchAgent templates from `launchagents-template/com.example.mc-mailbox.plist` and `com.example.mc-mailbox-digest.plist` (rename `com.example` → `com.YOUR_USER`).
+
+---
+
 ## Technical References
 
 - Telegram chat_id: YOUR_CHAT_ID

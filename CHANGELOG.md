@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-05-07
+
+### Added — Assistant Mailbox
+
+A dedicated email address that the assistant operates on its own, with five distinct use cases — three for the user (CC awareness, direct materials, and commands) and two for autonomy on the user's behalf (auto-replies to third parties on whitelisted topics, outbound delivery of heavy materials back to the user). The mailbox runs on `jgalea/mailbox-mcp` as an extra alias on top of any existing IMAP accounts; auth is IMAP + Gmail App Password (no OAuth, no periodic refresh-token chore).
+
+- **`scripts/cron-mc-mailbox.sh`** — every-30-min cron wrapper that runs the assistant-mailbox flow during waking hours (07:00–22:00). Reads new mail since the last run, verifies `Authentication-Results` (SPF + DKIM/DMARC pass), checks the sender allowlist, classifies into CC / MATERIAL / COMMAND buckets, and processes each bucket. Commands always require Telegram confirmation — never auto-execute, even from allowlisted senders with passing auth. State persists in `.state/mc-mailbox-last-processed.txt`; daily counters in `.state/mc-mailbox-digest-<YYYYMMDD>.json`.
+- **`scripts/cron-mc-mailbox-digest.sh`** — daily 21:00 digest wrapper. Reads the day's counter file and sends a Telegram recap (CC processed, materials saved, commands still pending, errors). Silent if all counters are zero.
+- **`scripts/add-mailbox-account.mjs`** — adds a new IMAP alias to a previously-bootstrapped `jgalea/mailbox-mcp` install without rewriting existing aliases. Reuses `MAILBOX_MCP_PASSPHRASE` so the new account is encrypted with the same key. Defaults to Gmail IMAP/SMTP hosts; takes `<alias>` and an env file as arguments. Restart the channels session afterwards so mailbox MCP reloads `accounts.json`.
+- **`launchagents-template/com.example.mc-mailbox.plist`** + **`com.example.mc-mailbox-digest.plist`** — LaunchAgent templates for the two crons (every-30-min schedule + 21:00 daily).
+- **`templates/user-bio-template.md`** — standard-bio scaffold (short + long versions in IT and EN, topic expertise, speaking format, indicative compensation range with the rule that exact fees are never disclosed automatically). The auto-reply policy reads this file when a third party requests a bio or press kit.
+- **`mission-control-template.md`** new section "**6. Assistant Mailbox**" — documents all five use cases, sender allowlist, mandatory `Authentication-Results` verification (catches `From:` spoofing), three inbound buckets, third-party auto-reply topic whitelist (with explicit gray zone and "always-confirm" categories), reply signature, language detection, CC-the-user policy, outbound `[MC] <topic>` pattern, SMTP setup, and an 8-step setup checklist (2FA, App Password, alias registration, channels restart, MCP verification).
+
+### Security model
+Three layers protect the assistant mailbox: (1) **sender allowlist** — commands and CC awareness only trust pre-declared user addresses; (2) **`Authentication-Results` header check** — SPF + DKIM/DMARC pass mandatory before any processing, since `From:` alone is trivially spoofable; (3) **explicit confirmation for commands** — even with allowlist + auth pass, the assistant always sends a Telegram message with subject + body preview and waits for `ok` / `no` (4h timeout). Auto-replies to third parties are signed with the assistant identity (not the user's name) and CC the user on the user's primary email so visibility is preserved without forcing the user to open the mailbox.
+
 ## [1.5.0] — 2026-05-06
 
 ### Added — Weather-aware Travel Agent
